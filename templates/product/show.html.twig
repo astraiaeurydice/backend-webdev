@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Product{% endblock %}
+
+{% block body %}
+    <h1 class="text-3xl font-bold mb-6">Product</h1>
+    
+
+    <div class="overflow-x-auto shadow rounded-lg mb-6">
+        <table class="min-w-full border border-gray-200 bg-white rounded-lg">
+            <tbody class="divide-y divide-gray-200">
+                <tr>
+                    <th class="px-4 py-2 text-left font-medium text-gray-700 bg-gray-50">Id</th>
+                    <td class="px-4 py-2">{{ product.id }}</td>
+                </tr>
+                <tr>
+                    <th class="px-4 py-2 text-left font-medium text-gray-700 bg-gray-50">Name</th>
+                    <td class="px-4 py-2">{{ product.name }}</td>
+                </tr>
+                <tr>
+                    <th class="px-4 py-2 text-left font-medium text-gray-700 bg-gray-50">Price</th>
+                    <td class="px-4 py-2">{{ product.price }}</td>
+                </tr>
+                <tr>
+                    <th class="px-4 py-2 text-left font-medium text-gray-700 bg-gray-50">Description</th>
+                    <td class="px-4 py-2">{{ product.description }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="flex gap-4">
+        <a href="{{ path('app_product_index') }}"
+           class="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300 transition">
+            Back to list
+        </a>
+
+        <a href="{{ path('app_product_edit', {'id': product.id}) }}"
+           class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition">
+            Edit
+        </a>
+
+        {{ include('product/_delete_form.html.twig') }}
+    </div>
+{% endblock %}
