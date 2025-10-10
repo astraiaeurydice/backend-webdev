@@ -9,6 +9,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/api/suppliers')]
 final class SupplierController extends AbstractController
@@ -21,8 +22,8 @@ final class SupplierController extends AbstractController
             $data = array_map(fn(Supplier $s) => [
                 'id' => $s->getId(),
                 'companyName' => $s->getCompanyName(),
-                'company_name' => $s->getCompanyName(), // Add snake_case for compatibility
-                'name' => $s->getCompanyName(), // Add 'name' field as your React code checks for it
+                'company_name' => $s->getCompanyName(),
+                'name' => $s->getCompanyName(),
                 'contactPerson' => $s->getContactPerson(),
                 'email' => $s->getEmail(),
                 'phone' => $s->getPhone(),
@@ -37,11 +38,10 @@ final class SupplierController extends AbstractController
     }
 
     #[Route('', name: 'api_supplier_new', methods: ['POST'])]
-    public function new(Request $request, EntityManagerInterface $em): JsonResponse
+    public function new(Request $request, EntityManagerInterface $em, ValidatorInterface $validator): JsonResponse
     {
         try {
             $data = json_decode($request->getContent(), true);
-
             if (!$data) {
                 return $this->json(['error' => 'Invalid JSON data'], 400);
             }
@@ -58,13 +58,24 @@ final class SupplierController extends AbstractController
                 ->setAddress($data['address'] ?? null)
                 ->setStatus($data['status'] ?? 'active');
 
+            // ✅ Validate entity fields before saving
+            $errors = $validator->validate($supplier);
+            if (count($errors) > 0) {
+                $errorMessages = [];
+                foreach ($errors as $error) {
+                    $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+                }
+                return $this->json($errorMessages, 400);
+            }
+
             $em->persist($supplier);
             $em->flush();
 
             return $this->json([
                 'message' => 'Supplier created successfully',
-                'id' => $supplier->getId()
+                'id' => $supplier->getId(),
             ], 201);
+
         } catch (\Exception $e) {
             return $this->json(['error' => 'Failed to create supplier: ' . $e->getMessage()], 500);
         }
@@ -96,7 +107,7 @@ final class SupplierController extends AbstractController
     }
 
     #[Route('/{id}', name: 'api_supplier_edit', methods: ['PUT'])]
-    public function edit(int $id, Request $request, EntityManagerInterface $em, SupplierRepository $repo): JsonResponse
+    public function edit(int $id, Request $request, EntityManagerInterface $em, SupplierRepository $repo, ValidatorInterface $validator): JsonResponse
     {
         try {
             $supplier = $repo->find($id);
@@ -105,7 +116,6 @@ final class SupplierController extends AbstractController
             }
 
             $data = json_decode($request->getContent(), true);
-
             if (!$data) {
                 return $this->json(['error' => 'Invalid JSON data'], 400);
             }
@@ -117,6 +127,16 @@ final class SupplierController extends AbstractController
                 ->setPhone($data['phone'] ?? $supplier->getPhone())
                 ->setAddress($data['address'] ?? $supplier->getAddress())
                 ->setStatus($data['status'] ?? $supplier->getStatus());
+
+            // ✅ Validate updates too
+            $errors = $validator->validate($supplier);
+            if (count($errors) > 0) {
+                $errorMessages = [];
+                foreach ($errors as $error) {
+                    $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+                }
+                return $this->json($errorMessages, 400);
+            }
 
             $em->flush();
 

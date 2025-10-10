@@ -6,6 +6,7 @@ use App\Repository\SupplierRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Symfony\Component\Validator\Constraints as Assert;
 
 
 #[ORM\Entity(repositoryClass: SupplierRepository::class)]
@@ -27,7 +28,13 @@ class Supplier
     private ?string $email = null;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
+    #[Assert\NotBlank(message: 'Phone number is required.')]
+    #[Assert\Regex(
+        pattern: '/^\+82\d{8,10}$/',
+        message: 'Phone number must start with +82 and contain 8 to 10 digits after it.'
+    )]
     private ?string $phone = null;
+
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $address = null;

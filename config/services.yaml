@@ -1,6 +1,7 @@
-parameters: { }
+parameters:
+    products_images_directory: '%kernel.project_dir%/public/uploads/products'
 
-services:
+services:       
     _defaults:
         autowire: true
         autoconfigure: true
@@ -10,6 +11,6 @@ services:
 
     # explicitly wire JwtService with env var
     App\Service\JwtService:
-        arguments:
+        arguments:  
             $jwtSecret: '%env(resolve:JWT_SECRET)%'
 

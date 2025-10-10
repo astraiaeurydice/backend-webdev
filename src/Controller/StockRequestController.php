@@ -364,18 +364,18 @@ final class StockRequestController extends AbstractController
                 $req->setNotes($data['notes']);
             }
 
-            // Accept the request and update stock
-            $req->accept();
-            
-            // Get product and update stock quantity
+            // Get product and old stock BEFORE accepting
             $product = $req->getProduct();
             $oldStock = $product->getStockQuantity() ?? 0;
-            $newStock = $oldStock + $req->getQuantity();
-            $product->setStockQuantity($newStock);
+
+            // Accept the request - this already updates stock via increaseStock() in the entity
+            $req->accept();
+            
+            // Get new stock AFTER accepting
+            $newStock = $product->getStockQuantity();
 
             // Persist and flush
             $em->persist($req);
-            $em->persist($product);
             $em->flush();
 
             return $this->json([
@@ -492,12 +492,8 @@ final class StockRequestController extends AbstractController
                     continue;
                 }
 
+                // Accept the request - this already updates stock via increaseStock() in the entity
                 $req->accept();
-                
-                // Update product stock
-                $product = $req->getProduct();
-                $currentStock = $product->getStockQuantity() ?? 0;
-                $product->setStockQuantity($currentStock + $req->getQuantity());
 
                 $results['success'][] = $id;
             }
