@@ -1,0 +1,8 @@
+{{ form_start(form, { attr: { class: 'space-y-4' } }) }}
+    <div class="space-y-4">
+        {{ form_widget(form, { attr: { class: 'w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50' } }) }}
+    </div>
+    <button class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition">
+        {{ button_label|default('Save') }}
+    </button>
+{{ form_end(form) }}
