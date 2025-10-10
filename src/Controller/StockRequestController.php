@@ -124,6 +124,7 @@ final class StockRequestController extends AbstractController
 
     /**
      * Admin creates a new stock request
+     * Auto-selects supplier from product or product's group if not manually specified
      */
     #[Route('', name: 'api_stock_request_new', methods: ['POST'])]
     public function new(
@@ -140,7 +141,6 @@ final class StockRequestController extends AbstractController
             }
 
             $product = $productRepo->find($data['product_id'] ?? 0);
-            $supplier = $supplierRepo->find($data['supplier_id'] ?? 0);
             $quantity = $data['quantity'] ?? 0;
             $unitPrice = $data['unit_price'] ?? null;
             $notes = $data['notes'] ?? null;
@@ -149,12 +149,34 @@ final class StockRequestController extends AbstractController
                 return $this->json(['error' => 'Product not found'], 404);
             }
 
-            if (!$supplier) {
-                return $this->json(['error' => 'Supplier not found'], 404);
-            }
-
             if ($quantity <= 0) {
                 return $this->json(['error' => 'Quantity must be greater than 0'], 400);
+            }
+
+            // Auto-select supplier logic
+            $supplier = null;
+            
+            // Priority 1: Manual supplier override
+            if (isset($data['supplier_id']) && $data['supplier_id']) {
+                $supplier = $supplierRepo->find($data['supplier_id']);
+                if (!$supplier) {
+                    return $this->json(['error' => 'Specified supplier not found'], 404);
+                }
+            }
+            // Priority 2: Product's direct supplier
+            elseif ($product->getSupplier()) {
+                $supplier = $product->getSupplier();
+            }
+            // Priority 3: Product's group supplier
+            elseif ($product->getGroup() && $product->getGroup()->getSupplier()) {
+                $supplier = $product->getGroup()->getSupplier();
+            }
+
+            if (!$supplier) {
+                return $this->json([
+                    'error' => 'No supplier found',
+                    'message' => 'Product has no assigned supplier, and the product group has no supplier either. Please assign a supplier manually.'
+                ], 400);
             }
 
             $requestEntity = (new StockRequest())
@@ -310,78 +332,78 @@ final class StockRequestController extends AbstractController
     /**
      * Supplier accepts the request
      */
-#[Route('/{id}/accept', name: 'api_stock_request_accept', methods: ['POST'])]
-public function accept(
-    int $id, 
-    Request $request,
-    StockRequestRepository $repo, 
-    EntityManagerInterface $em
-): JsonResponse {
-    try {
-        $req = $repo->find($id);
-        
-        if (!$req) {
-            return $this->json(['error' => 'Request not found'], 404);
-        }
+    #[Route('/{id}/accept', name: 'api_stock_request_accept', methods: ['POST'])]
+    public function accept(
+        int $id, 
+        Request $request,
+        StockRequestRepository $repo, 
+        EntityManagerInterface $em
+    ): JsonResponse {
+        try {
+            $req = $repo->find($id);
+            
+            if (!$req) {
+                return $this->json(['error' => 'Request not found'], 404);
+            }
 
-        if (!$req->isPending()) {
+            if (!$req->isPending()) {
+                return $this->json([
+                    'error' => 'Only pending requests can be accepted',
+                    'current_status' => $req->getStatus()
+                ], 400);
+            }
+
+            // Get optional data from request body
+            $data = json_decode($request->getContent(), true) ?? [];
+            
+            if (isset($data['unit_price']) && $data['unit_price'] > 0) {
+                $req->setUnitPrice($data['unit_price']);
+            }
+
+            if (isset($data['notes'])) {
+                $req->setNotes($data['notes']);
+            }
+
+            // Accept the request and update stock
+            $req->accept();
+            
+            // Get product and update stock quantity
+            $product = $req->getProduct();
+            $oldStock = $product->getStockQuantity() ?? 0;
+            $newStock = $oldStock + $req->getQuantity();
+            $product->setStockQuantity($newStock);
+
+            // Persist and flush
+            $em->persist($req);
+            $em->persist($product);
+            $em->flush();
+
             return $this->json([
-                'error' => 'Only pending requests can be accepted',
-                'current_status' => $req->getStatus()
-            ], 400);
+                'message' => 'Stock request accepted and inventory updated',
+                'data' => [
+                    'id' => $req->getId(),
+                    'status' => $req->getStatus(),
+                    'product' => [
+                        'id' => $product->getId(),
+                        'name' => $product->getName(),
+                        'oldStock' => $oldStock,
+                        'newStock' => $newStock,
+                        'addedQuantity' => $req->getQuantity(),
+                    ],
+                    'respondedAt' => $req->getRespondedAt()?->format('Y-m-d H:i:s'),
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            // Rollback any changes if error occurs
+            $em->clear();
+            
+            return $this->json([
+                'error' => 'Failed to accept stock request',
+                'message' => $e->getMessage(),
+                'trace' => $_ENV['APP_ENV'] === 'dev' ? $e->getTraceAsString() : null
+            ], 500);
         }
-
-        // Get optional data from request body
-        $data = json_decode($request->getContent(), true) ?? [];
-        
-        if (isset($data['unit_price']) && $data['unit_price'] > 0) {
-            $req->setUnitPrice($data['unit_price']);
-        }
-
-        if (isset($data['notes'])) {
-            $req->setNotes($data['notes']);
-        }
-
-        // Accept the request and update stock
-        $req->accept();
-        
-        // Get product and update stock quantity
-        $product = $req->getProduct();
-        $oldStock = $product->getStockQuantity() ?? 0;
-        $newStock = $oldStock + $req->getQuantity();
-        $product->setStockQuantity($newStock);
-
-        // Persist and flush
-        $em->persist($req);
-        $em->persist($product);
-        $em->flush();
-
-        return $this->json([
-            'message' => 'Stock request accepted and inventory updated',
-            'data' => [
-                'id' => $req->getId(),
-                'status' => $req->getStatus(),
-                'product' => [
-                    'id' => $product->getId(),
-                    'name' => $product->getName(),
-                    'oldStock' => $oldStock,
-                    'newStock' => $newStock,
-                    'addedQuantity' => $req->getQuantity(),
-                ],
-                'respondedAt' => $req->getRespondedAt()?->format('Y-m-d H:i:s'),
-            ]
-        ], 200);
-    } catch (\Exception $e) {
-        // Rollback any changes if error occurs
-        $em->clear();
-        
-        return $this->json([
-            'error' => 'Failed to accept stock request',
-            'message' => $e->getMessage(),
-            'trace' => $_ENV['APP_ENV'] === 'dev' ? $e->getTraceAsString() : null
-        ], 500);
     }
-}
 
     /**
      * Supplier declines the request
@@ -438,69 +460,66 @@ public function accept(
     /**
      * Bulk accept multiple requests
      */
- /**
- * Bulk accept multiple requests
- */
-#[Route('/bulk/accept', name: 'api_stock_request_bulk_accept', methods: ['POST'])]
-public function bulkAccept(
-    Request $request,
-    StockRequestRepository $repo,
-    EntityManagerInterface $em
-): JsonResponse {
-    try {
-        $data = json_decode($request->getContent(), true);
-        $ids = $data['ids'] ?? [];
+    #[Route('/bulk/accept', name: 'api_stock_request_bulk_accept', methods: ['POST'])]
+    public function bulkAccept(
+        Request $request,
+        StockRequestRepository $repo,
+        EntityManagerInterface $em
+    ): JsonResponse {
+        try {
+            $data = json_decode($request->getContent(), true);
+            $ids = $data['ids'] ?? [];
 
-        if (empty($ids) || !is_array($ids)) {
-            return $this->json(['error' => 'Invalid request IDs'], 400);
-        }
-
-        $results = [
-            'success' => [],
-            'failed' => [],
-        ];
-
-        foreach ($ids as $id) {
-            $req = $repo->find($id);
-            
-            if (!$req) {
-                $results['failed'][] = ['id' => $id, 'reason' => 'Not found'];
-                continue;
+            if (empty($ids) || !is_array($ids)) {
+                return $this->json(['error' => 'Invalid request IDs'], 400);
             }
 
-            if (!$req->isPending()) {
-                $results['failed'][] = ['id' => $id, 'reason' => 'Not pending'];
-                continue;
+            $results = [
+                'success' => [],
+                'failed' => [],
+            ];
+
+            foreach ($ids as $id) {
+                $req = $repo->find($id);
+                
+                if (!$req) {
+                    $results['failed'][] = ['id' => $id, 'reason' => 'Not found'];
+                    continue;
+                }
+
+                if (!$req->isPending()) {
+                    $results['failed'][] = ['id' => $id, 'reason' => 'Not pending'];
+                    continue;
+                }
+
+                $req->accept();
+                
+                // Update product stock
+                $product = $req->getProduct();
+                $currentStock = $product->getStockQuantity() ?? 0;
+                $product->setStockQuantity($currentStock + $req->getQuantity());
+
+                $results['success'][] = $id;
             }
 
-            $req->accept();
-            
-            // Update product stock - FIXED: Use correct method names
-            $product = $req->getProduct();
-            $currentStock = $product->getStockQuantity() ?? 0;
-            $product->setStockQuantity($currentStock + $req->getQuantity());
+            $em->flush();
 
-            $results['success'][] = $id;
+            return $this->json([
+                'message' => 'Bulk accept completed',
+                'results' => $results,
+                'summary' => [
+                    'total' => count($ids),
+                    'accepted' => count($results['success']),
+                    'failed' => count($results['failed']),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'error' => 'Failed to process bulk accept',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $em->flush();
-
-        return $this->json([
-            'message' => 'Bulk accept completed',
-            'results' => $results,
-            'summary' => [
-                'total' => count($ids),
-                'accepted' => count($results['success']),
-                'failed' => count($results['failed']),
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return $this->json([
-            'error' => 'Failed to process bulk accept',
-            'message' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Get requests by supplier

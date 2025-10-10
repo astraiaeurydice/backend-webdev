@@ -4,6 +4,9 @@ namespace App\Entity;
 
 use App\Repository\SupplierRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+
 
 #[ORM\Entity(repositoryClass: SupplierRepository::class)]
 #[ORM\Table(name: 'supplier')]
@@ -31,6 +34,10 @@ class Supplier
 
     #[ORM\Column(type: 'string', length: 20)]
     private ?string $status = 'active';
+
+    #[ORM\OneToMany(mappedBy: 'supplier', targetEntity: Product::class)]
+    private Collection $products;
+
 
     // Remove any 'name' property if it exists!
 
@@ -104,4 +111,37 @@ class Supplier
         $this->status = $status;
         return $this;
     }
+
+    public function __construct()
+{
+    $this->products = new ArrayCollection();
+}
+
+// Add these methods at the end
+/**
+ * @return Collection<int, Product>
+ */
+public function getProducts(): Collection
+{
+    return $this->products;
+}
+
+public function addProduct(Product $product): self
+{
+    if (!$this->products->contains($product)) {
+        $this->products[] = $product;
+        $product->setSupplier($this);
+    }
+    return $this;
+}
+
+public function removeProduct(Product $product): self
+{
+    if ($this->products->removeElement($product)) {
+        if ($product->getSupplier() === $this) {
+            $product->setSupplier(null);
+        }
+    }
+    return $this;
+}
 }

@@ -27,14 +27,20 @@ class Product
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $image = null;
 
+    // CHANGED: Now using relationship instead of just string
+    #[ORM\ManyToOne(targetEntity: Group::class, inversedBy: 'products')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Group $group = null;
+
+    // KEPT for backwards compatibility, but will be deprecated
     #[ORM\Column(length: 100, nullable: true)]
-    private ?string $groupName = null; // e.g. BTS, Blackpink
+    private ?string $groupName = null;
 
     #[ORM\Column(length: 100, nullable: true)]
-    private ?string $category = null; // e.g. Lightstick, Album
+    private ?string $category = null;
 
     #[ORM\Column(length: 100, nullable: true)]
-    private ?string $subcategory = null; // Optional deeper classification
+    private ?string $subcategory = null;
 
     #[ORM\Column(nullable: true, options: ["default" => 0])]
     private ?int $stockQuantity = 0; 
@@ -57,12 +63,22 @@ class Product
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
+        
+        // Auto-sync groupName from Group relationship
+        if ($this->group) {
+            $this->groupName = $this->group->getName();
+        }
     }
 
     #[ORM\PreUpdate]
     public function onPreUpdate(): void
     {
         $this->updatedAt = new \DateTime();
+        
+        // Auto-sync groupName from Group relationship
+        if ($this->group) {
+            $this->groupName = $this->group->getName();
+        }
     }
 
     // === GETTERS AND SETTERS ===
@@ -81,6 +97,18 @@ class Product
     public function getImage(): ?string { return $this->image; }
     public function setImage(?string $image): self { $this->image = $image; return $this; }
 
+    // NEW: Group relationship
+    public function getGroup(): ?Group { return $this->group; }
+    public function setGroup(?Group $group): self { 
+        $this->group = $group;
+        // Auto-update groupName when group is set
+        if ($group) {
+            $this->groupName = $group->getName();
+        }
+        return $this; 
+    }
+
+    // KEPT for backwards compatibility
     public function getGroupName(): ?string { return $this->groupName; }
     public function setGroupName(?string $groupName): self { $this->groupName = $groupName; return $this; }
 
@@ -105,37 +133,29 @@ class Product
     public function getSupplier(): ?Supplier { return $this->supplier; }
     public function setSupplier(?Supplier $supplier): static { $this->supplier = $supplier; return $this; }
 
-    // Add this method to your Product entity class
+    public function increaseStock(int $amount): self
+    {
+        if ($amount < 0) {
+            throw new \InvalidArgumentException('Amount must be positive');
+        }
+        
+        $this->stockQuantity = ($this->stockQuantity ?? 0) + $amount;
+        return $this;
+    }
 
-/**
- * Increase stock quantity by the given amount
- */
-public function increaseStock(int $amount): self
-{
-    if ($amount < 0) {
-        throw new \InvalidArgumentException('Amount must be positive');
+    public function decreaseStock(int $amount): self
+    {
+        if ($amount < 0) {
+            throw new \InvalidArgumentException('Amount must be positive');
+        }
+        
+        $newQuantity = ($this->stockQuantity ?? 0) - $amount;
+        
+        if ($newQuantity < 0) {
+            throw new \InvalidArgumentException('Insufficient stock quantity');
+        }
+        
+        $this->stockQuantity = $newQuantity;
+        return $this;
     }
-    
-    $this->stockQuantity = ($this->stockQuantity ?? 0) + $amount;
-    return $this;
-}
-
-/**
- * Decrease stock quantity by the given amount
- */
-public function decreaseStock(int $amount): self
-{
-    if ($amount < 0) {
-        throw new \InvalidArgumentException('Amount must be positive');
-    }
-    
-    $newQuantity = ($this->stockQuantity ?? 0) - $amount;
-    
-    if ($newQuantity < 0) {
-        throw new \InvalidArgumentException('Insufficient stock quantity');
-    }
-    
-    $this->stockQuantity = $newQuantity;
-    return $this;
-}
 }

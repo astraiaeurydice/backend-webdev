@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Product;
 use App\Repository\ProductRepository;
 use App\Repository\SupplierRepository;
+use App\Repository\GroupRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,7 +20,8 @@ class ProductController extends AbstractController
     public function create(
         Request $request, 
         EntityManagerInterface $em,
-        SupplierRepository $supplierRepository
+        SupplierRepository $supplierRepository,
+        GroupRepository $groupRepository
     ): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -45,9 +47,24 @@ class ProductController extends AbstractController
             if (isset($data['image'])) {
                 $product->setImage($data['image']);
             }
-            if (isset($data['groupName'])) {
+            
+            // Handle Group relationship (NEW WAY)
+            if (isset($data['groupId'])) {
+                $group = $groupRepository->find($data['groupId']);
+                if ($group) {
+                    $product->setGroup($group);
+                    // Auto-set supplier from group
+                    if ($group->getSupplier()) {
+                        $product->setSupplier($group->getSupplier());
+                    }
+                }
+            }
+            
+            // Backwards compatibility: accept groupName as string
+            if (isset($data['groupName']) && !isset($data['groupId'])) {
                 $product->setGroupName($data['groupName']);
             }
+            
             if (isset($data['category'])) {
                 $product->setCategory($data['category']);
             }
@@ -61,8 +78,8 @@ class ProductController extends AbstractController
                 $product->setStatus($data['status']);
             }
 
-            // Handle supplier if provided
-            if (isset($data['supplierId'])) {
+            // Manual supplier override (optional, if you want to allow this)
+            if (isset($data['supplierId']) && !isset($data['groupId'])) {
                 $supplier = $supplierRepository->find($data['supplierId']);
                 if ($supplier) {
                     $product->setSupplier($supplier);
@@ -78,13 +95,17 @@ class ProductController extends AbstractController
                     'id' => $product->getId(),
                     'name' => $product->getName(),
                     'price' => $product->getPrice(),
+                    'group' => $product->getGroup() ? [
+                        'id' => $product->getGroup()->getId(),
+                        'name' => $product->getGroup()->getName()
+                    ] : null,
                     'groupName' => $product->getGroupName(),
                     'category' => $product->getCategory(),
                     'stockQuantity' => $product->getStockQuantity(),
                     'status' => $product->getStatus(),
                     'supplier' => $product->getSupplier() ? [
                         'id' => $product->getSupplier()->getId(),
-                        'name' => $product->getSupplier()->getName()
+                        'name' => $product->getSupplier()->getCompanyName()
                     ] : null,
                     'createdAt' => $product->getCreatedAt()->format('Y-m-d H:i:s')
                 ]
@@ -108,13 +129,17 @@ class ProductController extends AbstractController
                 'name' => $product->getName(),
                 'description' => $product->getDescription(),
                 'price' => $product->getPrice(),
+                'group' => $product->getGroup() ? [
+                    'id' => $product->getGroup()->getId(),
+                    'name' => $product->getGroup()->getName()
+                ] : null,
                 'groupName' => $product->getGroupName(),
                 'category' => $product->getCategory(),
                 'stockQuantity' => $product->getStockQuantity(),
                 'status' => $product->getStatus(),
                 'supplier' => $product->getSupplier() ? [
                     'id' => $product->getSupplier()->getId(),
-                    'name' => $product->getSupplier()->getName()
+                    'name' => $product->getSupplier()->getCompanyName()
                 ] : null
             ];
         }, $products);
@@ -131,6 +156,14 @@ class ProductController extends AbstractController
             'description' => $product->getDescription(),
             'price' => $product->getPrice(),
             'image' => $product->getImage(),
+            'group' => $product->getGroup() ? [
+                'id' => $product->getGroup()->getId(),
+                'name' => $product->getGroup()->getName(),
+                'supplier' => $product->getGroup()->getSupplier() ? [
+                    'id' => $product->getGroup()->getSupplier()->getId(),
+                    'companyName' => $product->getGroup()->getSupplier()->getCompanyName()
+                ] : null
+            ] : null,
             'groupName' => $product->getGroupName(),
             'category' => $product->getCategory(),
             'subcategory' => $product->getSubcategory(),
@@ -138,7 +171,7 @@ class ProductController extends AbstractController
             'status' => $product->getStatus(),
             'supplier' => $product->getSupplier() ? [
                 'id' => $product->getSupplier()->getId(),
-                'name' => $product->getSupplier()->getName(),
+                'name' => $product->getSupplier()->getCompanyName(),
                 'email' => $product->getSupplier()->getEmail()
             ] : null,
             'createdAt' => $product->getCreatedAt()->format('Y-m-d H:i:s'),
@@ -151,7 +184,8 @@ class ProductController extends AbstractController
         Product $product,
         Request $request,
         EntityManagerInterface $em,
-        SupplierRepository $supplierRepository
+        SupplierRepository $supplierRepository,
+        GroupRepository $groupRepository
     ): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -165,13 +199,25 @@ class ProductController extends AbstractController
             if (isset($data['description'])) $product->setDescription($data['description']);
             if (isset($data['price'])) $product->setPrice((float) $data['price']);
             if (isset($data['image'])) $product->setImage($data['image']);
+            
+            // Handle Group relationship
+            if (isset($data['groupId'])) {
+                $group = $groupRepository->find($data['groupId']);
+                $product->setGroup($group);
+                // Auto-update supplier from group
+                if ($group && $group->getSupplier()) {
+                    $product->setSupplier($group->getSupplier());
+                }
+            }
+            
             if (isset($data['groupName'])) $product->setGroupName($data['groupName']);
             if (isset($data['category'])) $product->setCategory($data['category']);
             if (isset($data['subcategory'])) $product->setSubcategory($data['subcategory']);
             if (isset($data['stockQuantity'])) $product->setStockQuantity((int) $data['stockQuantity']);
             if (isset($data['status'])) $product->setStatus($data['status']);
 
-            if (isset($data['supplierId'])) {
+            // Manual supplier override
+            if (isset($data['supplierId']) && !isset($data['groupId'])) {
                 $supplier = $supplierRepository->find($data['supplierId']);
                 $product->setSupplier($supplier);
             }
