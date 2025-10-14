@@ -25,13 +25,14 @@ class Group
     #[ORM\Column(type: 'string', length: 20)]
     private ?string $status = 'active';
 
-    // Relationship: Each group belongs to one supplier (entertainment company)
-    #[ORM\ManyToOne(targetEntity: Supplier::class)]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
+    // ✅ Each group can belong to one supplier (entertainment company)
+    // Made supplier nullable to allow flexibility when changing/removing
+    #[ORM\ManyToOne(targetEntity: Supplier::class, inversedBy: 'groups')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Supplier $supplier = null;
 
-    // Relationship: One group can have many products
-    #[ORM\OneToMany(mappedBy: 'group', targetEntity: Product::class)]
+    // ✅ One group can have many products
+    #[ORM\OneToMany(mappedBy: 'group', targetEntity: Product::class, cascade: ['persist', 'remove'])]
     private Collection $products;
 
     public function __construct()

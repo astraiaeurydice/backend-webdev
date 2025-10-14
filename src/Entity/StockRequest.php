@@ -149,9 +149,17 @@ class StockRequest
         return $this->unitPrice; 
     }
 
-    public function setUnitPrice(?string $unitPrice): static 
+    /**
+     * Set unit price - accepts both string and float/int
+     */
+    public function setUnitPrice(string|float|int|null $unitPrice): static 
     { 
-        $this->unitPrice = $unitPrice; 
+        if ($unitPrice === null) {
+            $this->unitPrice = null;
+        } else {
+            // Convert to string for database storage
+            $this->unitPrice = number_format((float)$unitPrice, 2, '.', '');
+        }
         $this->calculateTotalPrice();
         return $this; 
     }
@@ -206,6 +214,14 @@ class StockRequest
 
     public function decline(): static
     {
+        if ($this->status === 'accepted') {
+            throw new \LogicException('Cannot decline an accepted stock request');
+        }
+        
+        if ($this->status === 'declined') {
+            throw new \LogicException('Stock request is already declined');
+        }
+        
         $this->status = 'declined';
         $this->respondedAt = new \DateTime();
         return $this;

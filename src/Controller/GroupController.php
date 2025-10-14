@@ -128,8 +128,7 @@ class GroupController extends AbstractController
         Request $request,
         EntityManagerInterface $em,
         SupplierRepository $supplierRepository
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $data = json_decode($request->getContent(), true);
 
         if (!$data) {
@@ -140,16 +139,28 @@ class GroupController extends AbstractController
             if (isset($data['name'])) {
                 $group->setName($data['name']);
             }
+
             if (isset($data['debutYear'])) {
                 $group->setDebutYear($data['debutYear']);
             }
+
             if (isset($data['status'])) {
                 $group->setStatus($data['status']);
             }
+
+            // ✅ When supplier changes, update both group and related products
             if (isset($data['supplierId'])) {
                 $supplier = $supplierRepository->find($data['supplierId']);
-                if ($supplier) {
-                    $group->setSupplier($supplier);
+                if (!$supplier) {
+                    return $this->json(['error' => 'Supplier not found'], Response::HTTP_NOT_FOUND);
+                }
+
+                // Update the group's supplier
+                $group->setSupplier($supplier);
+
+                // ✅ Propagate supplier change to all products in this group
+                foreach ($group->getProducts() as $product) {
+                    $product->setSupplier($supplier);
                 }
             }
 
@@ -159,7 +170,13 @@ class GroupController extends AbstractController
                 'message' => 'Group updated successfully',
                 'group' => [
                     'id' => $group->getId(),
-                    'name' => $group->getName()
+                    'name' => $group->getName(),
+                    'debutYear' => $group->getDebutYear(),
+                    'status' => $group->getStatus(),
+                    'supplier' => $group->getSupplier() ? [
+                        'id' => $group->getSupplier()->getId(),
+                        'companyName' => $group->getSupplier()->getCompanyName()
+                    ] : null
                 ]
             ]);
 
@@ -169,6 +186,7 @@ class GroupController extends AbstractController
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
 
     #[Route('/{id}', name: 'group_delete', methods: ['DELETE'])]
     public function delete(Group $group, EntityManagerInterface $em): JsonResponse
