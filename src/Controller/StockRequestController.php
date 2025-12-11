@@ -3,9 +3,12 @@
 namespace App\Controller;
 
 use App\Entity\StockRequest;
+use App\Entity\User;
 use App\Repository\StockRequestRepository;
 use App\Repository\ProductRepository;
 use App\Repository\SupplierRepository;
+use App\Service\ActivityLogService;
+use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,6 +18,54 @@ use Symfony\Component\Routing\Annotation\Route;
 #[Route('/api/stock-requests')]
 class StockRequestController extends AbstractController
 {
+    public function __construct(
+        private ActivityLogService $activityLogService,
+        private JwtService $jwtService
+    ) {}
+
+    /**
+     * Get current user from JWT token (admin/staff only for logging)
+     */
+    private function getCurrentUser(Request $request, EntityManagerInterface $em): ?User
+    {
+        $authHeader = $request->headers->get('Authorization');
+        
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return null;
+        }
+
+        $token = substr($authHeader, 7);
+
+        try {
+            $decoded = $this->jwtService->validateToken($token);
+            
+            if ($decoded === null || !is_array($decoded)) {
+                return null;
+            }
+            
+            $userId = $decoded['id'] ?? null;
+
+            if (!$userId) {
+                return null;
+            }
+
+            $user = $em->getRepository(User::class)->find($userId);
+
+            if (!$user) {
+                return null;
+            }
+
+            // Only log for admin/staff
+            $roles = $user->getRoles();
+            if (!in_array('ROLE_ADMIN', $roles) && !in_array('ROLE_STAFF', $roles)) {
+                return null;
+            }
+
+            return $user;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
     #[Route('', name: 'stock_request_create', methods: ['POST'])]
     public function create(
         Request $request,
@@ -86,6 +137,19 @@ class StockRequestController extends AbstractController
 
             $entityManager->persist($stockRequest);
             $entityManager->flush();
+
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $entityManager);
+            if ($currentUser) {
+                $supplierName = $supplier->getCompanyName() ?? 'Unknown';
+                $this->activityLogService->logCreate(
+                    $currentUser,
+                    'StockRequest',
+                    $stockRequest->getId(),
+                    "Product: {$product->getName()}, Quantity: {$stockRequest->getQuantity()}, Supplier: {$supplierName}",
+                    $request
+                );
+            }
 
             // Get supplier name
             $supplierName = 'Unknown';
@@ -159,8 +223,25 @@ class StockRequestController extends AbstractController
                 }
             }
 
+            // Store info before deletion for logging
+            $requestId = $stockRequest->getId();
+            $productName = $stockRequest->getProduct()?->getName() ?? 'Unknown';
+            $quantity = $stockRequest->getQuantity();
+
             $entityManager->remove($stockRequest);
             $entityManager->flush();
+
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $entityManager);
+            if ($currentUser) {
+                $this->activityLogService->logDelete(
+                    $currentUser,
+                    'StockRequest',
+                    $requestId,
+                    "Product: {$productName}, Quantity: {$quantity}",
+                    $request
+                );
+            }
 
             return $this->json([
                 'message' => 'Stock request deleted successfully',
@@ -174,6 +255,7 @@ class StockRequestController extends AbstractController
     #[Route('/{id}/accept', name: 'stock_request_accept', methods: ['POST'])]
     public function accept(
         int $id,
+        Request $request,
         StockRequestRepository $repository,
         EntityManagerInterface $entityManager
     ): JsonResponse {
@@ -195,6 +277,19 @@ class StockRequestController extends AbstractController
             
             $entityManager->flush();
 
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $entityManager);
+            if ($currentUser) {
+                $productName = $stockRequest->getProduct()?->getName() ?? 'Unknown';
+                $quantity = $stockRequest->getQuantity();
+                $this->activityLogService->log(
+                    $currentUser,
+                    'UPDATE',
+                    "StockRequest: Accepted - Product: {$productName}, Quantity: {$quantity} (ID: {$stockRequest->getId()})",
+                    $request
+                );
+            }
+
             return $this->json([
                 'message' => 'Stock request accepted successfully',
                 'request' => [
@@ -214,6 +309,7 @@ class StockRequestController extends AbstractController
     #[Route('/{id}/decline', name: 'stock_request_decline', methods: ['POST'])]
     public function decline(
         int $id,
+        Request $request,
         StockRequestRepository $repository,
         EntityManagerInterface $entityManager
     ): JsonResponse {
@@ -232,6 +328,19 @@ class StockRequestController extends AbstractController
 
             $stockRequest->decline();
             $entityManager->flush();
+
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $entityManager);
+            if ($currentUser) {
+                $productName = $stockRequest->getProduct()?->getName() ?? 'Unknown';
+                $quantity = $stockRequest->getQuantity();
+                $this->activityLogService->log(
+                    $currentUser,
+                    'UPDATE',
+                    "StockRequest: Declined - Product: {$productName}, Quantity: {$quantity} (ID: {$stockRequest->getId()})",
+                    $request
+                );
+            }
 
             return $this->json([
                 'message' => 'Stock request declined successfully',
