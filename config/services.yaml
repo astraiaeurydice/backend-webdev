@@ -8,9 +8,18 @@ services:
 
     App\:
         resource: '../src/'
-
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+    
     # explicitly wire JwtService with env var
     App\Service\JwtService:
         arguments:  
             $jwtSecret: '%env(resolve:JWT_SECRET)%'
+    
+    # Register ActivityLogSubscriber as Doctrine event subscriber
+    App\EventSubscriber\ActivityLogSubscriber:
+        tags:
+            - { name: doctrine.event_subscriber }
 

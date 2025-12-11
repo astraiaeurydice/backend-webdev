@@ -3,9 +3,12 @@
 namespace App\Controller;
 
 use App\Entity\Product;
+use App\Entity\User;
 use App\Repository\ProductRepository;
 use App\Repository\SupplierRepository;
 use App\Repository\GroupRepository;
+use App\Service\ActivityLogService;
+use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -17,6 +20,40 @@ use Symfony\Component\HttpFoundation\File\Exception\FileException;
 #[Route('/api/products')]
 class ProductController extends AbstractController
 {
+    private ActivityLogService $activityLogService;
+
+    public function __construct(ActivityLogService $activityLogService)
+    {
+        $this->activityLogService = $activityLogService;
+    }
+
+    /**
+     * Helper method to get current user from JWT token
+     */
+    private function getCurrentUser(Request $request, JwtService $jwtService, EntityManagerInterface $em): ?User
+    {
+        $authHeader = $request->headers->get('Authorization');
+        
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return null;
+        }
+
+        $token = substr($authHeader, 7);
+
+        try {
+            $decoded = $jwtService->validateToken($token);
+            $userId = $decoded['id'] ?? null;
+
+            if (!$userId) {
+                return null;
+            }
+
+            return $em->getRepository(User::class)->find($userId);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
     #[Route('', name: 'product_list', methods: ['GET'])]
     public function list(ProductRepository $productRepository): JsonResponse
     {
@@ -120,7 +157,8 @@ class ProductController extends AbstractController
         Request $request, 
         EntityManagerInterface $em,
         SupplierRepository $supplierRepository,
-        GroupRepository $groupRepository
+        GroupRepository $groupRepository,
+        JwtService $jwtService
     ): JsonResponse
     {
         // Check if request has file upload (multipart/form-data)
@@ -248,6 +286,18 @@ class ProductController extends AbstractController
             $em->persist($product);
             $em->flush();
 
+            // Log the create activity
+            $currentUser = $this->getCurrentUser($request, $jwtService, $em);
+            if ($currentUser) {
+                $this->activityLogService->logCreate(
+                    $currentUser,
+                    'Product',
+                    $product->getId(),
+                    $product->getName(),
+                    $request
+                );
+            }
+
             return $this->json([
                 'message' => 'Product created successfully',
                 'product' => [
@@ -284,7 +334,8 @@ class ProductController extends AbstractController
         Request $request,
         EntityManagerInterface $em,
         SupplierRepository $supplierRepository,
-        GroupRepository $groupRepository
+        GroupRepository $groupRepository,
+        JwtService $jwtService
     ): JsonResponse
     {
         // Check if this is a file upload or JSON request
@@ -426,6 +477,18 @@ class ProductController extends AbstractController
 
             $em->flush();
 
+            // Log the update activity
+            $currentUser = $this->getCurrentUser($request, $jwtService, $em);
+            if ($currentUser) {
+                $this->activityLogService->logUpdate(
+                    $currentUser,
+                    'Product',
+                    $product->getId(),
+                    $product->getName(),
+                    $request
+                );
+            }
+
             return $this->json([
                 'message' => 'Product updated successfully',
                 'product' => [
@@ -455,7 +518,12 @@ class ProductController extends AbstractController
     }
 
     #[Route('/{id}', name: 'product_delete', methods: ['DELETE'])]
-    public function delete(Product $product, EntityManagerInterface $em): JsonResponse
+    public function delete(
+        Product $product, 
+        EntityManagerInterface $em,
+        Request $request,
+        JwtService $jwtService
+    ): JsonResponse
     {
         try {
             // Check for related records before deleting
@@ -469,19 +537,9 @@ class ProductController extends AbstractController
                 ], Response::HTTP_CONFLICT);
             }
             
-            // Check for order items (if you have this entity)
-            // Uncomment if you have OrderItem entity
-            /*
-            $orderItems = $em->getRepository('App\Entity\OrderItem')
-                ->findBy(['product' => $product]);
-            
-            if (count($orderItems) > 0) {
-                return $this->json([
-                    'error' => 'Cannot delete this product because it has ' . count($orderItems) . ' related order(s). Please remove or reassign those records first.',
-                    'relatedRecords' => count($orderItems)
-                ], Response::HTTP_CONFLICT);
-            }
-            */
+            // Store product info before deletion for logging
+            $productName = $product->getName();
+            $productId = $product->getId();
             
             // Delete image file if exists
             if ($product->getImage()) {
@@ -493,6 +551,18 @@ class ProductController extends AbstractController
             
             $em->remove($product);
             $em->flush();
+
+            // Log the delete activity
+            $currentUser = $this->getCurrentUser($request, $jwtService, $em);
+            if ($currentUser) {
+                $this->activityLogService->logDelete(
+                    $currentUser,
+                    'Product',
+                    $productId,
+                    $productName,
+                    $request
+                );
+            }
 
             return $this->json([
                 'message' => 'Product deleted successfully'

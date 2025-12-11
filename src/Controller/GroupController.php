@@ -3,8 +3,11 @@
 namespace App\Controller;
 
 use App\Entity\Group;
+use App\Entity\User;
 use App\Repository\GroupRepository;
 use App\Repository\SupplierRepository;
+use App\Service\ActivityLogService;
+use App\Service\JwtService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,6 +18,54 @@ use Symfony\Component\Routing\Annotation\Route;
 #[Route('/api/groups')]
 class GroupController extends AbstractController
 {
+    public function __construct(
+        private ActivityLogService $activityLogService,
+        private JwtService $jwtService
+    ) {}
+
+    /**
+     * Get current user from JWT token (admin/staff only for logging)
+     */
+    private function getCurrentUser(Request $request, EntityManagerInterface $em): ?User
+    {
+        $authHeader = $request->headers->get('Authorization');
+        
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return null;
+        }
+
+        $token = substr($authHeader, 7);
+
+        try {
+            $decoded = $this->jwtService->validateToken($token);
+            
+            if ($decoded === null || !is_array($decoded)) {
+                return null;
+            }
+            
+            $userId = $decoded['id'] ?? null;
+
+            if (!$userId) {
+                return null;
+            }
+
+            $user = $em->getRepository(User::class)->find($userId);
+
+            if (!$user) {
+                return null;
+            }
+
+            // Only log for admin/staff
+            $roles = $user->getRoles();
+            if (!in_array('ROLE_ADMIN', $roles) && !in_array('ROLE_STAFF', $roles)) {
+                return null;
+            }
+
+            return $user;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
     #[Route('', name: 'group_list', methods: ['GET'])]
     public function list(GroupRepository $repository): JsonResponse
     {
@@ -83,6 +134,18 @@ class GroupController extends AbstractController
 
             $em->persist($group);
             $em->flush();
+
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $em);
+            if ($currentUser) {
+                $this->activityLogService->logCreate(
+                    $currentUser,
+                    'Group',
+                    $group->getId(),
+                    $group->getName(),
+                    $request
+                );
+            }
 
             return $this->json([
                 'message' => 'Group created successfully',
@@ -166,6 +229,18 @@ class GroupController extends AbstractController
 
             $em->flush();
 
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $em);
+            if ($currentUser) {
+                $this->activityLogService->logUpdate(
+                    $currentUser,
+                    'Group',
+                    $group->getId(),
+                    $group->getName(),
+                    $request
+                );
+            }
+
             return $this->json([
                 'message' => 'Group updated successfully',
                 'group' => [
@@ -189,11 +264,27 @@ class GroupController extends AbstractController
 
 
     #[Route('/{id}', name: 'group_delete', methods: ['DELETE'])]
-    public function delete(Group $group, EntityManagerInterface $em): JsonResponse
+    public function delete(Group $group, Request $request, EntityManagerInterface $em): JsonResponse
     {
         try {
+            // Store info before deletion for logging
+            $groupId = $group->getId();
+            $groupName = $group->getName();
+
             $em->remove($group);
             $em->flush();
+
+            // Log activity for admin/staff
+            $currentUser = $this->getCurrentUser($request, $em);
+            if ($currentUser) {
+                $this->activityLogService->logDelete(
+                    $currentUser,
+                    'Group',
+                    $groupId,
+                    $groupName,
+                    $request
+                );
+            }
 
             return $this->json(['message' => 'Group deleted successfully']);
         } catch (\Exception $e) {
