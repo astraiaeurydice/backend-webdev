@@ -3,7 +3,7 @@
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "composer install --no-dev --optimize-autoloader --no-interaction && mkdir -p config/jwt && php bin/console lexik:jwt:generate-keypair --skip-if-exists 2>/dev/null || true"
+buildCommand = "COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction && mkdir -p config/jwt && php bin/console lexik:jwt:generate-keypair --skip-if-exists 2>/dev/null || true"
 
 [deploy]
 startCommand = "bash scripts/railway-start.sh"

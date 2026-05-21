@@ -1,4 +1,7 @@
 # Ensures PHP 8.2+ and required extensions for Symfony + MySQL
+[variables]
+COMPOSER_ALLOW_SUPERUSER = "1"
+
 [phases.setup]
 nixPkgs = [
   "php82",
@@ -13,7 +16,7 @@ nixPkgs = [
 ]
 
 [phases.install]
-cmds = ["composer install --no-dev --optimize-autoloader --no-interaction"]
+cmds = ["COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction"]
 
 [start]
 cmd = "bash scripts/railway-start.sh"
