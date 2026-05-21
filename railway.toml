@@ -7,6 +7,7 @@ buildCommand = "COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-
 
 [deploy]
 startCommand = "bash scripts/railway-start.sh"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 120
+# /ping.php works without Symfony; /api/health needs index.php router (see railway-start.sh)
+healthcheckPath = "/ping.php"
+healthcheckTimeout = 180
 restartPolicyType = "ON_FAILURE"
