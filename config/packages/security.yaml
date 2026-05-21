@@ -16,7 +16,8 @@ security:
         main:
             lazy: true
             provider: app_user_provider
-
+            custom_authenticators:
+                - App\Security\GoogleAuthenticator           
             # activate different ways to authenticate
             # https://symfony.com/doc/current/security.html#the-firewall
 
@@ -28,6 +29,17 @@ security:
     access_control:
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/profile, roles: ROLE_USER }
+        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/register, roles: PUBLIC_ACCESS }
+        - { path: ^/api/verify-email, roles: PUBLIC_ACCESS }
+        - { path: ^/verify-email, roles: PUBLIC_ACCESS }
+        - { path: ^/connect/google, roles: PUBLIC_ACCESS }
+        # Public contact form (no login)
+        - { path: ^/api/contact, roles: PUBLIC_ACCESS, methods: [POST, OPTIONS] }
+        # Allow public product browsing (no token required)
+        - { path: ^/api/products, roles: PUBLIC_ACCESS, methods: [GET, OPTIONS] }
+
+
 
 when@test:
     security:

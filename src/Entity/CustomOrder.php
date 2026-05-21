@@ -32,6 +32,9 @@ class CustomOrder
     #[ORM\Column(length: 50, options: ["default" => "pending"])]
     private ?string $status = 'pending';
 
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $receiptNumber = null;
+
     #[ORM\Column(type: Types::DATETIME_MUTABLE)]
     private ?\DateTimeInterface $createdAt = null;
 
@@ -67,6 +70,9 @@ class CustomOrder
 
     public function getStatus(): ?string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
+
+    public function getReceiptNumber(): ?string { return $this->receiptNumber; }
+    public function setReceiptNumber(?string $receiptNumber): self { $this->receiptNumber = $receiptNumber; return $this; }
 
     public function getCreatedAt(): ?\DateTimeInterface { return $this->createdAt; }
     public function setCreatedAt(\DateTimeInterface $createdAt): self { $this->createdAt = $createdAt; return $this; }

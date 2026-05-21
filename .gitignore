@@ -1,7 +1,10 @@
 ###> symfony/framework-bundle ###
+/.env
+/.env.dev
 /.env.local
 /.env.local.php
 /.env.*.local
+/bin/workerman.log
 /config/secrets/prod/prod.decrypt.private.php
 /public/bundles/
 /var/
@@ -19,3 +22,7 @@
 npm-debug.log
 yarn-error.log
 ###< symfony/webpack-encore-bundle ###
+
+###> lexik/jwt-authentication-bundle ###
+/config/jwt/*.pem
+###< lexik/jwt-authentication-bundle ###

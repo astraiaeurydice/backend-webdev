@@ -30,6 +30,11 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Invalid credentials'], 401);
         }
 
+        // Block login until email is verified
+        if (!$user->isVerified()) {
+            return new JsonResponse(['error' => 'Please verify your email address before logging in'], 403);
+        }
+
         // Check if account is disabled or archived
         if ($user->getStatus() !== 'active') {
             $statusMessage = $user->getStatus() === 'disabled' 
@@ -77,6 +82,8 @@ class AuthController extends AbstractController
                 'email' => $user->getEmail(),
                 'firstName' => $user->getFirstName(),
                 'lastName' => $user->getLastName(),
+                'phoneNumber' => $user->getPhoneNumber(),
+                'avatarUrl' => $user->getAvatarUrl(),
                 'role' => $user->getRoles()[0] ?? 'ROLE_USER'
             ]
         ]);

@@ -10,6 +10,7 @@ use App\Repository\TradePostRepository;
 use App\Repository\TradeRequestRepository;
 use App\Repository\TradeTransactionRepository;
 use App\Service\JwtService;
+use App\Service\TradeService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,7 +25,8 @@ class TradeController extends AbstractController
         private JwtService $jwtService,
         private TradePostRepository $tradePostRepo,
         private TradeRequestRepository $tradeRequestRepo,
-        private TradeTransactionRepository $tradeTransactionRepo
+        private TradeTransactionRepository $tradeTransactionRepo,
+        private TradeService $tradeService,
     ) {}
 
     /**
@@ -327,6 +329,8 @@ class TradeController extends AbstractController
         $this->em->persist($tradeRequest);
         $this->em->flush();
 
+        $this->tradeService->sendTradeOffer($tradeRequest);
+
         return $this->json($this->serializeTradeRequest($tradeRequest), 201);
     }
 
@@ -374,13 +378,20 @@ class TradeController extends AbstractController
 
         // Reject all other pending requests for this trade post
         $otherRequests = $this->tradeRequestRepo->findPendingByTradePost($tradePost);
+        $supersededRequests = [];
         foreach ($otherRequests as $otherRequest) {
             if ($otherRequest->getId() !== $requestId) {
                 $otherRequest->setStatus('rejected');
+                $supersededRequests[] = $otherRequest;
             }
         }
 
         $this->em->flush();
+
+        $this->tradeService->acceptTrade($tradeRequest, $transaction);
+        foreach ($supersededRequests as $superseded) {
+            $this->tradeService->notifyTradeOfferSuperseded($superseded);
+        }
 
         return $this->json([
             'message' => 'Trade request accepted. Waiting for admin verification.',
@@ -417,6 +428,8 @@ class TradeController extends AbstractController
 
         $tradeRequest->setStatus('rejected');
         $this->em->flush();
+
+        $this->tradeService->rejectTrade($tradeRequest);
 
         return $this->json(['message' => 'Trade request rejected']);
     }

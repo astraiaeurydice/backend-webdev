@@ -70,6 +70,7 @@ class UserProfileController extends AbstractController
             'email' => $user->getEmail(),
             'username' => $user->getUsername(),
             'phoneNumber' => $user->getPhoneNumber(),
+            'avatarUrl' => $user->getAvatarUrl(),
             'roles' => $user->getRoles(),
             'fullName' => $user->getFirstName() . ' ' . $user->getLastName()
         ]);
@@ -141,6 +142,9 @@ class UserProfileController extends AbstractController
             $user->setEmail($data['email']);
             $user->setUsername($data['username']);
             $user->setPhoneNumber($data['phoneNumber']);
+            if (array_key_exists('avatarUrl', $data)) {
+                $user->setAvatarUrl($data['avatarUrl'] ?: null);
+            }
 
             $em->flush();
 
@@ -151,6 +155,7 @@ class UserProfileController extends AbstractController
                 'email' => $user->getEmail(),
                 'username' => $user->getUsername(),
                 'phoneNumber' => $user->getPhoneNumber(),
+                'avatarUrl' => $user->getAvatarUrl(),
                 'roles' => $user->getRoles(),
                 'fullName' => $user->getFirstName() . ' ' . $user->getLastName(),
                 'message' => 'Profile updated successfully'

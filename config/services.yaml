@@ -17,6 +17,35 @@ services:
     App\Service\JwtService:
         arguments:  
             $jwtSecret: '%env(resolve:JWT_SECRET)%'
+
+    App\Service\EmailVerificationService:
+        arguments:
+            $fromAddress: '%env(MAILER_FROM_ADDRESS)%'
+            $fromName: '%env(MAILER_FROM_NAME)%'
+
+    App\Service\BrevoEmailService:
+        arguments:
+            $fromAddress: '%env(MAILER_FROM_ADDRESS)%'
+            $fromName: '%env(MAILER_FROM_NAME)%'
+            # Must be a real env var (see .env); Symfony default: processor needs a *parameter* name, not MAILER_FROM_ADDRESS
+            $notifyEmail: '%env(CONTACT_NOTIFY_EMAIL)%'
+
+    App\Service\WebSocketPublisher:
+        arguments:
+            $workermanUrl: '%env(WORKERMAN_INTERNAL_URL)%'
+
+    App\Service\OneSignalService:
+        arguments:
+            $appId: '%env(ONESIGNAL_APP_ID)%'
+            $apiKey: '%env(ONESIGNAL_API_KEY)%'
+
+    App\Security\GoogleAuthenticator:
+        arguments:
+            $frontendUrl: '%env(FRONTEND_URL)%'
+
+    App\Controller\EmailVerificationController:
+        arguments:
+            $frontendUrl: '%env(FRONTEND_URL)%'
     
     # Register ActivityLogSubscriber as Doctrine event subscriber
     App\EventSubscriber\ActivityLogSubscriber:

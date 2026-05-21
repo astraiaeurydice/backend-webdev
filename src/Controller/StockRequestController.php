@@ -34,7 +34,7 @@ class StockRequestController extends AbstractController
             return null;
         }
 
-        $token = substr($authHeader, 7);
+        $token = trim(substr($authHeader, 7));
 
         try {
             $decoded = $this->jwtService->validateToken($token);
@@ -138,7 +138,6 @@ class StockRequestController extends AbstractController
             $entityManager->persist($stockRequest);
             $entityManager->flush();
 
-            // Log activity for admin/staff
             $currentUser = $this->getCurrentUser($request, $entityManager);
             if ($currentUser) {
                 $supplierName = $supplier->getCompanyName() ?? 'Unknown';
@@ -146,7 +145,7 @@ class StockRequestController extends AbstractController
                     $currentUser,
                     'StockRequest',
                     $stockRequest->getId(),
-                    "Product: {$product->getName()}, Quantity: {$stockRequest->getQuantity()}, Supplier: {$supplierName}",
+                    "Created (pending verification) — {$product->getName()} ×{$stockRequest->getQuantity()}, supplier: {$supplierName}",
                     $request
                 );
             }
@@ -231,14 +230,13 @@ class StockRequestController extends AbstractController
             $entityManager->remove($stockRequest);
             $entityManager->flush();
 
-            // Log activity for admin/staff
             $currentUser = $this->getCurrentUser($request, $entityManager);
             if ($currentUser) {
                 $this->activityLogService->logDelete(
                     $currentUser,
                     'StockRequest',
                     $requestId,
-                    "Product: {$productName}, Quantity: {$quantity}",
+                    "Deleted from verification queue — {$productName} ×{$quantity}",
                     $request
                 );
             }
@@ -277,15 +275,15 @@ class StockRequestController extends AbstractController
             
             $entityManager->flush();
 
-            // Log activity for admin/staff
             $currentUser = $this->getCurrentUser($request, $entityManager);
             if ($currentUser) {
                 $productName = $stockRequest->getProduct()?->getName() ?? 'Unknown';
                 $quantity = $stockRequest->getQuantity();
-                $this->activityLogService->log(
+                $this->activityLogService->logUpdate(
                     $currentUser,
-                    'UPDATE',
-                    "StockRequest: Accepted - Product: {$productName}, Quantity: {$quantity} (ID: {$stockRequest->getId()})",
+                    'StockRequest',
+                    $stockRequest->getId(),
+                    "Accepted (stock added) — {$productName} ×{$quantity}",
                     $request
                 );
             }
@@ -329,15 +327,15 @@ class StockRequestController extends AbstractController
             $stockRequest->decline();
             $entityManager->flush();
 
-            // Log activity for admin/staff
             $currentUser = $this->getCurrentUser($request, $entityManager);
             if ($currentUser) {
                 $productName = $stockRequest->getProduct()?->getName() ?? 'Unknown';
                 $quantity = $stockRequest->getQuantity();
-                $this->activityLogService->log(
+                $this->activityLogService->logUpdate(
                     $currentUser,
-                    'UPDATE',
-                    "StockRequest: Declined - Product: {$productName}, Quantity: {$quantity} (ID: {$stockRequest->getId()})",
+                    'StockRequest',
+                    $stockRequest->getId(),
+                    "Declined (verification) — {$productName} ×{$quantity}",
                     $request
                 );
             }

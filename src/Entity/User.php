@@ -43,6 +43,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 20)]
     private ?string $status = 'active';
 
+    #[ORM\Column]
+    private bool $isVerified = false;
+
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $verificationToken = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $avatarUrl = null;
+
+
     // GETTERS & SETTERS
     public function getId(): ?int
     {
@@ -74,7 +84,19 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setRoles(array $roles): static
     {
-        $this->roles = $roles;
+        // Normalize roles to Symfony's ROLE_* convention (e.g. "admin" -> "ROLE_ADMIN").
+        $normalized = [];
+        foreach ($roles as $role) {
+            if ($role === null) continue;
+            $r = strtoupper(trim((string) $role));
+            if ($r === '') continue;
+            if (!str_starts_with($r, 'ROLE_')) {
+                $r = 'ROLE_' . $r;
+            }
+            $normalized[] = $r;
+        }
+
+        $this->roles = array_values(array_unique($normalized));
         return $this;
     }
 
@@ -146,6 +168,38 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+        return $this;
+    }
+    public function isVerified(): bool
+    {
+        return $this->isVerified;
+    }
+
+    public function setIsVerified(bool $isVerified): static
+    {
+        $this->isVerified = $isVerified;
+        return $this;
+    }
+
+    public function getVerificationToken(): ?string
+    {
+        return $this->verificationToken;
+    }
+
+    public function setVerificationToken(?string $verificationToken): static
+    {
+        $this->verificationToken = $verificationToken;
+        return $this;
+    }
+
+    public function getAvatarUrl(): ?string
+    {
+        return $this->avatarUrl;
+    }
+
+    public function setAvatarUrl(?string $avatarUrl): static
+    {
+        $this->avatarUrl = $avatarUrl;
         return $this;
     }
 

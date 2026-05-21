@@ -152,182 +152,186 @@ class ProductController extends AbstractController
         }
     }
 
-    #[Route('', name: 'product_create', methods: ['POST'])]
-    public function create(
-        Request $request, 
-        EntityManagerInterface $em,
-        SupplierRepository $supplierRepository,
-        GroupRepository $groupRepository,
-        JwtService $jwtService
-    ): JsonResponse
-    {
-        // Check if request has file upload (multipart/form-data)
-        $isFileUpload = $request->files->count() > 0;
-        
-        if ($isFileUpload) {
-            // Handle form data
-            $data = [
-                'name' => $request->request->get('name'),
-                'description' => $request->request->get('description'),
-                'price' => $request->request->get('price'),
-                'category' => $request->request->get('category'),
-                'subcategory' => $request->request->get('subcategory'),
-                'stockQuantity' => $request->request->get('stockQuantity'),
-                'status' => $request->request->get('status'),
-                'groupId' => $request->request->get('groupId'),
-                'groupName' => $request->request->get('groupName'),
-                'supplierId' => $request->request->get('supplierId'),
-            ];
-        } else {
-            // Handle JSON data (backwards compatibility)
-            $data = json_decode($request->getContent(), true);
-            if (!$data) {
-                return $this->json(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
-            }
-        }
-
-        // Validate required fields
-        if (empty($data['name']) || empty($data['description']) || !isset($data['price'])) {
-            return $this->json([
-                'error' => 'Missing required fields: name, description, and price are required'
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        try {
-            $product = new Product();
-            $product->setName($data['name']);
-            $product->setDescription($data['description']);
-            $product->setPrice((float) $data['price']);
-            
-            // Handle file upload
-            if ($isFileUpload && $request->files->get('image')) {
-                $imageFile = $request->files->get('image');
-                
-                // Validate file
-                $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                $maxFileSize = 5 * 1024 * 1024; // 5MB
-                
-                if (!in_array($imageFile->getMimeType(), $allowedMimeTypes)) {
-                    return $this->json([
-                        'error' => 'Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.'
-                    ], Response::HTTP_BAD_REQUEST);
-                }
-                
-                if ($imageFile->getSize() > $maxFileSize) {
-                    return $this->json([
-                        'error' => 'File size exceeds 5MB limit.'
-                    ], Response::HTTP_BAD_REQUEST);
-                }
-                
-                // Generate unique filename
-                $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
-                $safeFilename = $this->sanitizeFilename($originalFilename);
-                $newFilename = $safeFilename . '-' . uniqid() . '.' . $imageFile->guessExtension();
-                
-                // Move file to uploads directory
-                try {
-                    $uploadsDirectory = $this->getParameter('kernel.project_dir') . '/public/uploads/products';
-                    
-                    // Create directory if it doesn't exist
-                    if (!is_dir($uploadsDirectory)) {
-                        mkdir($uploadsDirectory, 0777, true);
-                    }
-                    
-                    $imageFile->move($uploadsDirectory, $newFilename);
-                    $product->setImage('/uploads/products/' . $newFilename);
-                } catch (FileException $e) {
-                    return $this->json([
-                        'error' => 'Failed to upload file: ' . $e->getMessage()
-                    ], Response::HTTP_INTERNAL_SERVER_ERROR);
-                }
-            } elseif (isset($data['image'])) {
-                // Backwards compatibility: accept image URL
-                $product->setImage($data['image']);
-            }
-            
-            // Handle Group relationship
-            if (isset($data['groupId']) && !empty($data['groupId'])) {
-                $group = $groupRepository->find($data['groupId']);
-                if ($group) {
-                    $product->setGroup($group);
-                    // Auto-set supplier from group
-                    if ($group->getSupplier()) {
-                        $product->setSupplier($group->getSupplier());
-                    }
-                }
-            }
-            
-            // Backwards compatibility: accept groupName as string
-            if (isset($data['groupName']) && !isset($data['groupId'])) {
-                $product->setGroupName($data['groupName']);
-            }
-            
-            if (isset($data['category'])) {
-                $product->setCategory($data['category']);
-            }
-            if (isset($data['subcategory'])) {
-                $product->setSubcategory($data['subcategory']);
-            }
-            if (isset($data['stockQuantity'])) {
-                $product->setStockQuantity((int) $data['stockQuantity']);
-            }
-            if (isset($data['status'])) {
-                $product->setStatus($data['status']);
-            }
-
-            // Manual supplier override
-            if (isset($data['supplierId']) && !empty($data['supplierId']) && !isset($data['groupId'])) {
-                $supplier = $supplierRepository->find($data['supplierId']);
-                if ($supplier) {
-                    $product->setSupplier($supplier);
-                }
-            }
-
-            $em->persist($product);
-            $em->flush();
-
-            // Log the create activity
-            $currentUser = $this->getCurrentUser($request, $jwtService, $em);
-            if ($currentUser) {
-                $this->activityLogService->logCreate(
-                    $currentUser,
-                    'Product',
-                    $product->getId(),
-                    $product->getName(),
-                    $request
-                );
-            }
-
-            return $this->json([
-                'message' => 'Product created successfully',
-                'product' => [
-                    'id' => $product->getId(),
-                    'name' => $product->getName(),
-                    'price' => $product->getPrice(),
-                    'image' => $product->getImage(),
-                    'group' => $product->getGroup() ? [
-                        'id' => $product->getGroup()->getId(),
-                        'name' => $product->getGroup()->getName()
-                    ] : null,
-                    'groupName' => $product->getGroupName(),
-                    'category' => $product->getCategory(),
-                    'stockQuantity' => $product->getStockQuantity(),
-                    'status' => $product->getStatus(),
-                    'supplier' => $product->getSupplier() ? [
-                        'id' => $product->getSupplier()->getId(),
-                        'name' => $product->getSupplier()->getCompanyName()
-                    ] : null,
-                    'createdAt' => $product->getCreatedAt()->format('Y-m-d H:i:s')
-                ]
-            ], Response::HTTP_CREATED);
-
-        } catch (\Exception $e) {
-            return $this->json([
-                'error' => 'Failed to create product: ' . $e->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+#[Route('', name: 'product_create', methods: ['POST'])]
+public function create(
+    Request $request, 
+    EntityManagerInterface $em,
+    SupplierRepository $supplierRepository,
+    GroupRepository $groupRepository,
+    JwtService $jwtService
+): JsonResponse
+{
+    // Check if request has file upload (multipart/form-data)
+    $isFileUpload = $request->files->count() > 0;
+    
+    if ($isFileUpload) {
+        // Handle form data
+        $data = [
+            'name' => $request->request->get('name'),
+            'description' => $request->request->get('description'),
+            'price' => $request->request->get('price'),
+            'category' => $request->request->get('category'),
+            'subcategory' => $request->request->get('subcategory'),
+            'stockQuantity' => $request->request->get('stockQuantity'),
+            'status' => $request->request->get('status'),
+            'groupId' => $request->request->get('groupId'),
+            'groupName' => $request->request->get('groupName'),
+            'supplierId' => $request->request->get('supplierId'),
+        ];
+    } else {
+        // Handle JSON data (backwards compatibility)
+        $data = json_decode($request->getContent(), true);
+        if (!$data) {
+            return $this->json(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
         }
     }
 
+    // Validate required fields
+    if (empty($data['name']) || empty($data['description']) || !isset($data['price'])) {
+        return $this->json([
+            'error' => 'Missing required fields: name, description, and price are required'
+        ], Response::HTTP_BAD_REQUEST);
+    }
+
+    try {
+        $product = new Product();
+        $product->setName($data['name']);
+        $product->setDescription($data['description']);
+        $product->setPrice((float) $data['price']);
+        
+        // Handle file upload
+        if ($isFileUpload && $request->files->get('image')) {
+            $imageFile = $request->files->get('image');
+            
+            // Validate file using client-provided MIME type (avoids need for fileinfo extension)
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $maxFileSize = 5 * 1024 * 1024; // 5MB
+
+            // FIX: Use getClientMimeType() instead of getMimeType() to avoid fileinfo dependency
+            $mimeType = $imageFile->getClientMimeType();
+            
+            if (!in_array($mimeType, $allowedMimeTypes)) {
+                return $this->json([
+                    'error' => 'Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+            
+            if ($imageFile->getSize() > $maxFileSize) {
+                return $this->json([
+                    'error' => 'File size exceeds 5MB limit.'
+                ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+            
+            // Generate unique filename
+            $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
+            $safeFilename = $this->sanitizeFilename($originalFilename);
+
+            // FIX: Use getClientOriginalExtension() instead of guessExtension() to avoid fileinfo dependency
+            $newFilename = $safeFilename . '-' . uniqid() . '.' . $imageFile->getClientOriginalExtension();
+            
+            // Move file to uploads directory
+            try {
+                $uploadsDirectory = $this->getParameter('kernel.project_dir') . '/public/uploads/products';
+                
+                // Create directory if it doesn't exist
+                if (!is_dir($uploadsDirectory)) {
+                    mkdir($uploadsDirectory, 0777, true);
+                }
+                
+                $imageFile->move($uploadsDirectory, $newFilename);
+                $product->setImage('/uploads/products/' . $newFilename);
+            } catch (FileException $e) {
+                return $this->json([
+                    'error' => 'Failed to upload file: ' . $e->getMessage()
+                ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+        } elseif (isset($data['image'])) {
+            // Backwards compatibility: accept image URL
+            $product->setImage($data['image']);
+        }
+        
+        // Handle Group relationship
+        if (isset($data['groupId']) && !empty($data['groupId'])) {
+            $group = $groupRepository->find($data['groupId']);
+            if ($group) {
+                $product->setGroup($group);
+                // Auto-set supplier from group
+                if ($group->getSupplier()) {
+                    $product->setSupplier($group->getSupplier());
+                }
+            }
+        }
+        
+        // Backwards compatibility: accept groupName as string
+        if (isset($data['groupName']) && !isset($data['groupId'])) {
+            $product->setGroupName($data['groupName']);
+        }
+        
+        if (isset($data['category'])) {
+            $product->setCategory($data['category']);
+        }
+        if (isset($data['subcategory'])) {
+            $product->setSubcategory($data['subcategory']);
+        }
+        if (isset($data['stockQuantity'])) {
+            $product->setStockQuantity((int) $data['stockQuantity']);
+        }
+        if (isset($data['status'])) {
+            $product->setStatus($data['status']);
+        }
+
+        // Manual supplier override
+        if (isset($data['supplierId']) && !empty($data['supplierId']) && !isset($data['groupId'])) {
+            $supplier = $supplierRepository->find($data['supplierId']);
+            if ($supplier) {
+                $product->setSupplier($supplier);
+            }
+        }
+
+        $em->persist($product);
+        $em->flush();
+
+        // Log the create activity
+        $currentUser = $this->getCurrentUser($request, $jwtService, $em);
+        if ($currentUser) {
+            $this->activityLogService->logCreate(
+                $currentUser,
+                'Product',
+                $product->getId(),
+                $product->getName(),
+                $request
+            );
+        }
+
+        return $this->json([
+            'message' => 'Product created successfully',
+            'product' => [
+                'id' => $product->getId(),
+                'name' => $product->getName(),
+                'price' => $product->getPrice(),
+                'image' => $product->getImage(),
+                'group' => $product->getGroup() ? [
+                    'id' => $product->getGroup()->getId(),
+                    'name' => $product->getGroup()->getName()
+                ] : null,
+                'groupName' => $product->getGroupName(),
+                'category' => $product->getCategory(),
+                'stockQuantity' => $product->getStockQuantity(),
+                'status' => $product->getStatus(),
+                'supplier' => $product->getSupplier() ? [
+                    'id' => $product->getSupplier()->getId(),
+                    'name' => $product->getSupplier()->getCompanyName()
+                ] : null,
+                'createdAt' => $product->getCreatedAt()->format('Y-m-d H:i:s')
+            ]
+        ], Response::HTTP_CREATED);
+
+    } catch (\Exception $e) {
+        return $this->json([
+            'error' => 'Failed to create product: ' . $e->getMessage()
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+}
     #[Route('/{id}', name: 'product_update', methods: ['PUT', 'POST'])]
     public function update(
         Product $product,

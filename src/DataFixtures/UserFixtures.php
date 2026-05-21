@@ -26,7 +26,8 @@ class UserFixtures extends Fixture
         $admin->setEmail('admin@ako.com');
         $admin->setPhoneNumber('09123456789');
         $admin->setRoles(['ROLE_ADMIN']);
-        $admin->setStatus(['active']);
+        $admin->setStatus('active');
+        $admin->setIsVerified(true);
         $admin->setPassword($this->passwordHasher->hashPassword($admin, 'admin123'));
         $manager->persist($admin);
 

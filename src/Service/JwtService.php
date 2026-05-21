@@ -28,13 +28,25 @@ class JwtService
         return JWT::encode($token, $this->jwtSecret, 'HS256');
     }
 
+    private function sanitizeToken(string $token): string
+    {
+        $t = trim($token);
+        // Allow callers to pass "Bearer <token>"
+        if (str_starts_with(strtolower($t), 'bearer ')) {
+            $t = trim(substr($t, 7));
+        }
+        // Remove accidental quotes
+        $t = trim($t, "\"' \t\n\r\0\x0B");
+        return $t;
+    }
+
     /**
      * Decode the full token payload (including iat, exp, data)
      */
     public function decodeToken(string $token): ?array
     {
         try {
-            $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
+            $decoded = JWT::decode($this->sanitizeToken($token), new Key($this->jwtSecret, 'HS256'));
             return (array)$decoded;
         } catch (\Exception $e) {
             error_log('JWT decode error: ' . $e->getMessage());
@@ -48,7 +60,7 @@ class JwtService
     public function validateToken(string $token): ?array
     {
         try {
-            $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
+            $decoded = JWT::decode($this->sanitizeToken($token), new Key($this->jwtSecret, 'HS256'));
             // $decoded is a stdClass object with properties: iat, exp, data
             // $decoded->data is also a stdClass with: id, email, roles
             // Convert to array using json_decode/json_encode to properly handle nested objects

@@ -7,6 +7,7 @@ use App\Entity\Product;
 use App\Entity\User;
 use App\Service\JwtService;
 use App\Service\ActivityLogService;
+use App\Service\OrderService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -98,7 +99,8 @@ class CustomOrderController extends AbstractController
     public function createCustomOrder(
         Request $request,
         JwtService $jwtService,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        OrderService $orderService,
     ): JsonResponse {
         $validation = $this->validateAdminToken($request, $jwtService, $em);
         
@@ -141,7 +143,8 @@ class CustomOrderController extends AbstractController
         $customOrder->setProduct($product);
         $customOrder->setQuantity($data['quantity']);
         $customOrder->setTotalPrice($totalPrice);
-        $customOrder->setStatus('complete'); // Set to complete since it's purchased immediately
+        $customOrder->setStatus('complete');
+        $customOrder->setReceiptNumber('RCP-ADMIN-' . date('YmdHis') . '-' . $customer->getId());
 
         // Decrease product stock
         $product->decreaseStock($data['quantity']);
@@ -157,6 +160,8 @@ class CustomOrderController extends AbstractController
             "Order for {$customer->getUsername()}: {$product->getName()} x{$data['quantity']} - ₱{$totalPrice} (Status: complete)",
             $request
         );
+
+        $orderService->notifyOrderCreated($customOrder);
 
         return $this->json([
             'message' => 'Custom order created successfully',
@@ -175,6 +180,46 @@ class CustomOrderController extends AbstractController
                 'status' => $customOrder->getStatus(),
             ]
         ], 201);
+    }
+
+    #[Route('/api/admin/custom-orders/{id}/status', name: 'api_admin_update_custom_order_status', methods: ['PATCH'])]
+    public function updateCustomOrderStatus(
+        int $id,
+        Request $request,
+        JwtService $jwtService,
+        EntityManagerInterface $em,
+        OrderService $orderService,
+    ): JsonResponse {
+        $validation = $this->validateAdminToken($request, $jwtService, $em);
+
+        if (isset($validation['error'])) {
+            return $this->json(['error' => $validation['error']], $validation['code']);
+        }
+
+        $order = $em->getRepository(CustomOrder::class)->find($id);
+        if (!$order) {
+            return $this->json(['error' => 'Order not found'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $newStatus = $data['status'] ?? null;
+        if (!is_string($newStatus) || $newStatus === '') {
+            return $this->json(['error' => 'status is required'], 400);
+        }
+
+        $previousStatus = $order->getStatus();
+        $order->setStatus($newStatus);
+        $em->flush();
+
+        $orderService->updateOrderStatus($order, $previousStatus);
+
+        return $this->json([
+            'message' => 'Order status updated',
+            'order' => [
+                'id' => $order->getId(),
+                'status' => $order->getStatus(),
+            ],
+        ]);
     }
 
     #[Route('/api/admin/customers', name: 'api_admin_get_customers', methods: ['GET'])]

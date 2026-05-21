@@ -1,0 +1,12 @@
+# Railway deploy config — set Root Directory to "Backend" in the Railway dashboard.
+# Docs: https://docs.railway.com/guides/symfony
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "composer install --no-dev --optimize-autoloader --no-interaction && mkdir -p config/jwt && php bin/console lexik:jwt:generate-keypair --skip-if-exists 2>/dev/null || true"
+
+[deploy]
+startCommand = "bash scripts/railway-start.sh"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

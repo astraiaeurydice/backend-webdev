@@ -53,8 +53,9 @@ class PurchaseRecordsController extends AbstractController
                 return ['error' => 'User not found', 'code' => 401];
             }
 
-            if (!in_array('ROLE_ADMIN', $user->getRoles())) {
-                return ['error' => 'Access denied. Admin only.', 'code' => 403];
+            $roles = $user->getRoles();
+            if (!in_array('ROLE_ADMIN', $roles, true) && !in_array('ROLE_STAFF', $roles, true)) {
+                return ['error' => 'Access denied. Admin or Staff only.', 'code' => 403];
             }
 
             return ['user' => $user];
@@ -173,6 +174,7 @@ class PurchaseRecordsController extends AbstractController
     {
         $data = [
             'id' => $order->getId(),
+            'receiptNumber' => $order->getReceiptNumber(),
             'quantity' => $order->getQuantity(),
             'totalPrice' => $order->getTotalPrice(),
             'status' => $order->getStatus(),

@@ -7,6 +7,7 @@ use App\Entity\User;
 use App\Repository\TradeTransactionRepository;
 use App\Service\JwtService;
 use App\Service\ActivityLogService;
+use App\Service\TradeService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,7 +21,8 @@ class TradeVerificationController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private TradeTransactionRepository $tradeTransactionRepo,
-        private ActivityLogService $activityLogService
+        private ActivityLogService $activityLogService,
+        private TradeService $tradeService,
     ) {}
 
     /**
@@ -182,6 +184,8 @@ class TradeVerificationController extends AbstractController
             $request
         );
 
+        $this->tradeService->notifyTransactionVerified($transaction);
+
         return $this->json([
             'message' => 'Transaction verified successfully',
             'transaction' => $this->serializeTradeTransaction($transaction)
@@ -241,6 +245,8 @@ class TradeVerificationController extends AbstractController
             'Trade Transaction Rejected',
             $request
         );
+
+        $this->tradeService->notifyTransactionRejected($transaction);
 
         return $this->json([
             'message' => 'Transaction rejected',
