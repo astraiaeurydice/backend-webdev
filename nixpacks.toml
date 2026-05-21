@@ -16,7 +16,8 @@ nixPkgs = [
 ]
 
 [phases.install]
-cmds = ["COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction"]
+# --no-scripts: skip cache:clear during build (.env is not in the image; Railway injects vars at runtime)
+cmds = ["COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction --no-scripts"]
 
 [start]
 cmd = "bash scripts/railway-start.sh"
