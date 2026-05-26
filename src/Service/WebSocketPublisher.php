@@ -49,4 +49,41 @@ class WebSocketPublisher
             // Workerman may be offline — do not interrupt the Symfony request
         }
     }
+
+    /**
+     * Push a payload to every connected WebSocket client (e.g. shop catalog updates).
+     */
+    public function broadcast(array $payload): void
+    {
+        try {
+            $body = json_encode([
+                'broadcast' => true,
+                'payload' => $payload,
+            ], JSON_THROW_ON_ERROR);
+
+            $ch = curl_init($this->workermanUrl);
+            if ($ch === false) {
+                return;
+            }
+
+            $headers = ['Content-Type: application/json'];
+            if ($this->internalToken !== '') {
+                $headers[] = 'X-Internal-Token: ' . $this->internalToken;
+            }
+
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_POSTFIELDS => $body,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 2,
+                CURLOPT_CONNECTTIMEOUT => 2,
+            ]);
+
+            curl_exec($ch);
+            curl_close($ch);
+        } catch (\Throwable) {
+            // Workerman may be offline
+        }
+    }
 }

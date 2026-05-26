@@ -5,16 +5,13 @@ namespace App\Service;
 use App\Entity\CustomOrder;
 use App\Entity\User;
 use App\Service\Concerns\DeliversUserNotifications;
-use Psr\Log\LoggerInterface;
 
 class OrderService
 {
     use DeliversUserNotifications;
 
     public function __construct(
-        private WebSocketPublisher $webSocketPublisher,
-        private OneSignalService $oneSignalService,
-        private LoggerInterface $logger,
+        private UserNotificationService $userNotificationService,
     ) {
     }
 
@@ -36,9 +33,7 @@ class OrderService
         $productName = $order->getProduct()?->getName() ?? 'your order';
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             (int) $customer->getId(),
             'Order Update',
             sprintf('%s is now %s', $productName, $newStatus),
@@ -60,9 +55,7 @@ class OrderService
             : sprintf('%d orders confirmed. Total: ₱%.2f', $count, $total);
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             (int) $customer->getId(),
             'Order Confirmed',
             $body,
@@ -86,9 +79,7 @@ class OrderService
         $productName = $order->getProduct()?->getName() ?? 'Item';
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             (int) $customer->getId(),
             'New Order',
             sprintf('An order for %s was placed for you.', $productName),

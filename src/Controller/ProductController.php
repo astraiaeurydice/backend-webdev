@@ -9,6 +9,7 @@ use App\Repository\SupplierRepository;
 use App\Repository\GroupRepository;
 use App\Service\ActivityLogService;
 use App\Service\JwtService;
+use App\Service\ProductCatalogNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -158,7 +159,8 @@ public function create(
     EntityManagerInterface $em,
     SupplierRepository $supplierRepository,
     GroupRepository $groupRepository,
-    JwtService $jwtService
+    JwtService $jwtService,
+    ProductCatalogNotificationService $catalogNotifier,
 ): JsonResponse
 {
     // Check if request has file upload (multipart/form-data)
@@ -303,6 +305,8 @@ public function create(
             );
         }
 
+        $catalogNotifier->notifyProductCreated($product, $currentUser?->getId());
+
         return $this->json([
             'message' => 'Product created successfully',
             'product' => [
@@ -339,7 +343,8 @@ public function create(
         EntityManagerInterface $em,
         SupplierRepository $supplierRepository,
         GroupRepository $groupRepository,
-        JwtService $jwtService
+        JwtService $jwtService,
+        ProductCatalogNotificationService $catalogNotifier,
     ): JsonResponse
     {
         // Check if this is a file upload or JSON request
@@ -493,6 +498,8 @@ public function create(
                 );
             }
 
+            $catalogNotifier->notifyProductUpdated($product, $currentUser?->getId());
+
             return $this->json([
                 'message' => 'Product updated successfully',
                 'product' => [
@@ -526,7 +533,8 @@ public function create(
         Product $product, 
         EntityManagerInterface $em,
         Request $request,
-        JwtService $jwtService
+        JwtService $jwtService,
+        ProductCatalogNotificationService $catalogNotifier,
     ): JsonResponse
     {
         try {
@@ -567,6 +575,8 @@ public function create(
                     $request
                 );
             }
+
+            $catalogNotifier->notifyProductDeleted($productName, $productId, $currentUser?->getId());
 
             return $this->json([
                 'message' => 'Product deleted successfully'

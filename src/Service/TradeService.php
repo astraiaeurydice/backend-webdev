@@ -5,16 +5,13 @@ namespace App\Service;
 use App\Entity\TradeRequest;
 use App\Entity\TradeTransaction;
 use App\Service\Concerns\DeliversUserNotifications;
-use Psr\Log\LoggerInterface;
 
 class TradeService
 {
     use DeliversUserNotifications;
 
     public function __construct(
-        private WebSocketPublisher $webSocketPublisher,
-        private OneSignalService $oneSignalService,
-        private LoggerInterface $logger,
+        private UserNotificationService $userNotificationService,
     ) {
     }
 
@@ -25,9 +22,7 @@ class TradeService
         $receiverId = (int) $tradePost->getUser()->getId();
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             $receiverId,
             'New Trade Offer',
             sprintf('%s wants to trade with you', $tradeRequest->getRequester()->getUsername()),
@@ -45,9 +40,7 @@ class TradeService
         $requesterId = (int) $tradeRequest->getRequester()->getId();
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             $requesterId,
             'Trade Accepted',
             'Your trade offer was accepted. Waiting for admin verification.',
@@ -66,9 +59,7 @@ class TradeService
         $requesterId = (int) $tradeRequest->getRequester()->getId();
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             $requesterId,
             'Trade Rejected',
             'Your trade offer was declined.',
@@ -86,9 +77,7 @@ class TradeService
         $requesterId = (int) $tradeRequest->getRequester()->getId();
 
         $this->deliverUserNotification(
-            $this->webSocketPublisher,
-            $this->oneSignalService,
-            $this->logger,
+            $this->userNotificationService,
             $requesterId,
             'Trade Closed',
             'Another offer was accepted for this listing.',
@@ -112,9 +101,7 @@ class TradeService
 
         foreach ([$transaction->getOwner(), $transaction->getRequester()] as $user) {
             $this->deliverUserNotification(
-                $this->webSocketPublisher,
-                $this->oneSignalService,
-                $this->logger,
+                $this->userNotificationService,
                 (int) $user->getId(),
                 'Trade Verified',
                 'Your trade was verified by staff and is complete.',
@@ -135,9 +122,7 @@ class TradeService
 
         foreach ([$transaction->getOwner(), $transaction->getRequester()] as $user) {
             $this->deliverUserNotification(
-                $this->webSocketPublisher,
-                $this->oneSignalService,
-                $this->logger,
+                $this->userNotificationService,
                 (int) $user->getId(),
                 'Trade Not Approved',
                 'Your trade could not be verified. See admin notes for details.',

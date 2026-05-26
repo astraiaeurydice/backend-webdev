@@ -23,6 +23,13 @@ DATABASE_URL=
 EOF
 fi
 
+# Legacy deploys copied .env.example with unquoted spaces (Symfony Dotenv fatal error).
+if [ -f .env ] && grep -q '^MAILER_FROM_NAME=K-Dream Merchandise$' .env 2>/dev/null; then
+  echo "Repairing MAILER_FROM_NAME quotes in existing .env..."
+  sed -i 's/^MAILER_FROM_NAME=K-Dream Merchandise$/MAILER_FROM_NAME="K-Dream Merchandise"/' .env 2>/dev/null || \
+    perl -pi -e 's/^MAILER_FROM_NAME=K-Dream Merchandise$/MAILER_FROM_NAME="K-Dream Merchandise"/' .env
+fi
+
 echo "Generating JWT keys if missing..."
 mkdir -p config/jwt
 php bin/console lexik:jwt:generate-keypair --skip-if-exists --env="${APP_ENV}" 2>/dev/null || true

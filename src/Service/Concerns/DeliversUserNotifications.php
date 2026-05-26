@@ -2,51 +2,24 @@
 
 namespace App\Service\Concerns;
 
-use App\Service\OneSignalService;
-use App\Service\WebSocketPublisher;
-use Psr\Log\LoggerInterface;
+use App\Service\UserNotificationService;
 
 /**
- * Sends both real-time (WebSocket) and background (OneSignal) notifications.
+ * Persists + delivers notifications (WebSocket, poll inbox, optional OneSignal).
  */
 trait DeliversUserNotifications
 {
     /**
-     * WebSocket first for in-app updates; OneSignal for when the app is closed.
-     * Failures are logged and never thrown — the main business action already succeeded.
+     * @param array<string, mixed> $data
      */
     protected function deliverUserNotification(
-        WebSocketPublisher $webSocketPublisher,
-        OneSignalService $oneSignalService,
-        LoggerInterface $logger,
+        UserNotificationService $userNotificationService,
         int $userId,
         string $title,
         string $body,
         array $data = [],
     ): void {
-        $payload = array_merge([
-            'title' => $title,
-            'body' => $body,
-        ], $data);
-
-        try {
-            $webSocketPublisher->send($userId, $payload);
-        } catch (\Throwable $e) {
-            $logger->warning('WebSocket notification failed', [
-                'userId' => $userId,
-                'type' => $data['type'] ?? null,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        try {
-            $oneSignalService->notify($userId, $title, $body, $data);
-        } catch (\Throwable $e) {
-            $logger->warning('OneSignal notification failed', [
-                'userId' => $userId,
-                'type' => $data['type'] ?? null,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $type = (string) ($data['type'] ?? 'general');
+        $userNotificationService->deliverToUser($userId, $type, $title, $body, $data);
     }
 }

@@ -44,4 +44,25 @@ class HealthController extends AbstractController
             ...$status,
         ]);
     }
+
+    /** Mobile notifications: poll API always works; WebSocket/OneSignal are optional extras. */
+    #[Route('/api/health/realtime', name: 'api_health_realtime', methods: ['GET'])]
+    public function realtime(): JsonResponse
+    {
+        $wsUrl = (string) ($_ENV['WORKERMAN_INTERNAL_URL'] ?? getenv('WORKERMAN_INTERNAL_URL') ?: '');
+        $wsToken = (string) ($_ENV['WORKERMAN_INTERNAL_TOKEN'] ?? getenv('WORKERMAN_INTERNAL_TOKEN') ?: '');
+        $oneSignalId = (string) ($_ENV['ONESIGNAL_APP_ID'] ?? getenv('ONESIGNAL_APP_ID') ?: '');
+
+        return $this->json([
+            'status' => 'ok',
+            'poll_api' => '/api/notifications/poll',
+            'websocket_push' => [
+                'configured' => $wsUrl !== '' && $wsToken !== '',
+                'internal_url_set' => $wsUrl !== '',
+            ],
+            'onesignal' => [
+                'configured' => $oneSignalId !== '',
+            ],
+        ]);
+    }
 }

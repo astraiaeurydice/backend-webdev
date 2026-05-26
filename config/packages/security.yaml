@@ -31,6 +31,7 @@ security:
         # - { path: ^/profile, roles: ROLE_USER }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/api/health/integrations, roles: PUBLIC_ACCESS }
+        - { path: ^/api/health/realtime, roles: PUBLIC_ACCESS }
         - { path: ^/$, roles: PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/register, roles: PUBLIC_ACCESS }
