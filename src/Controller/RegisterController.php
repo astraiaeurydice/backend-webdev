@@ -4,13 +4,14 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Service\EmailVerificationService;
+use App\Service\VerificationUrlBuilder;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class RegisterController extends AbstractController
 {
@@ -18,6 +19,8 @@ class RegisterController extends AbstractController
         private EntityManagerInterface $entityManager,
         private UserPasswordHasherInterface $passwordHasher,
         private EmailVerificationService $emailVerificationService,
+        private VerificationUrlBuilder $verificationUrlBuilder,
+        private LoggerInterface $logger,
     ) {}
 
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
@@ -81,23 +84,27 @@ class RegisterController extends AbstractController
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        // Generate verification URL
-        $verificationUrl = $this->generateUrl(
-            'verify_email',
-            ['token' => $token],
-            UrlGeneratorInterface::ABSOLUTE_URL
-        );
+        $verificationUrl = $this->verificationUrlBuilder->build($token);
 
-        // Send email
+        $emailSent = false;
         try {
             $this->emailVerificationService->sendVerificationEmail($user, $verificationUrl);
-        } catch (\Exception $e) {
-            // Don't fail registration if email fails
+            $emailSent = true;
+        } catch (\Throwable $e) {
+            $this->logger->error('Registration verification email failed', [
+                'email' => $user->getEmail(),
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        $message = $emailSent
+            ? 'Registration successful! Please check your email to verify your account.'
+            : 'Account created, but we could not send the verification email. Ask an admin to resend or verify your Brevo settings on the server.';
 
         return new JsonResponse([
             'success' => true,
-            'message' => 'Registration successful! Please check your email to verify your account.',
+            'emailSent' => $emailSent,
+            'message' => $message,
             'user' => [
                 'id' => $user->getId(),
                 'username' => $user->getUsername(),

@@ -6,19 +6,20 @@ use App\Entity\User;
 use App\Service\JwtService;
 use App\Service\ActivityLogService;
 use App\Service\EmailVerificationService;
+use App\Service\VerificationUrlBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class UserManagementController extends AbstractController
 {
     public function __construct(
         private ActivityLogService $activityLogService,
-        private EmailVerificationService $emailVerificationService
+        private EmailVerificationService $emailVerificationService,
+        private VerificationUrlBuilder $verificationUrlBuilder,
     ) {
     }
 
@@ -161,11 +162,7 @@ class UserManagementController extends AbstractController
         if (!$markVerified) {
             $token = $user->getVerificationToken();
             if ($token) {
-                $verificationUrl = $this->generateUrl(
-                    'verify_email',
-                    ['token' => $token],
-                    UrlGeneratorInterface::ABSOLUTE_URL
-                );
+                $verificationUrl = $this->verificationUrlBuilder->build($token);
                 try {
                     $this->emailVerificationService->sendVerificationEmail($user, $verificationUrl);
                     $verificationEmailSent = true;
@@ -233,11 +230,7 @@ class UserManagementController extends AbstractController
             $user->setIsVerified(false);
             $token = $this->emailVerificationService->generateVerificationToken();
             $user->setVerificationToken($token);
-            $verificationUrl = $this->generateUrl(
-                'verify_email',
-                ['token' => $token],
-                UrlGeneratorInterface::ABSOLUTE_URL
-            );
+            $verificationUrl = $this->verificationUrlBuilder->build($token);
             try {
                 $this->emailVerificationService->sendVerificationEmail($user, $verificationUrl);
                 $verificationEmailSent = true;
@@ -434,11 +427,7 @@ class UserManagementController extends AbstractController
         $user->setVerificationToken($token);
         $em->flush();
 
-        $verificationUrl = $this->generateUrl(
-            'verify_email',
-            ['token' => $token],
-            UrlGeneratorInterface::ABSOLUTE_URL
-        );
+        $verificationUrl = $this->verificationUrlBuilder->build($token);
 
         try {
             $this->emailVerificationService->sendVerificationEmail($user, $verificationUrl);

@@ -101,7 +101,7 @@ In **Backend service → Variables**, add these (copy secrets from your local `.
 | `GOOGLE_CLIENT_ID` | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
 | `GOOGLE_REDIRECT_URI` | `https://YOUR-RAILWAY-DOMAIN/connect/google/check` (exact match in Google Console) |
-| `MAILER_DSN` | Brevo SMTP, e.g. `smtp://user@smtp-brevo.com:KEY@smtp-relay.brevo.com:587` |
+| `MAILER_DSN` | Brevo SMTP with timeout, e.g. `smtp://user@smtp-brevo.com:KEY@smtp-relay.brevo.com:587?encryption=tls&timeout=10` |
 | `MAILER_FROM_ADDRESS` | Sender verified in Brevo |
 | `MAILER_FROM_NAME` | `"K-Dream Merchandise"` (quotes required — spaces break Symfony `.env`) |
 | `CONTACT_NOTIFY_EMAIL` | Inbox for contact form notifications |

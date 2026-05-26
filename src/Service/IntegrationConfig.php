@@ -31,6 +31,9 @@ class IntegrationConfig
             'frontend_url' => $frontendUrl !== '' ? $frontendUrl : null,
             'frontend_configured' => $frontendReady,
             'backend_url' => $defaultUri !== '' ? $defaultUri : null,
+            'backend_configured' => $defaultUri !== ''
+                && !str_contains($defaultUri, 'localhost')
+                && !str_contains($defaultUri, '127.0.0.1'),
             'google_oauth' => [
                 'configured' => $googleReady,
                 'redirect_uri' => $googleRedirect !== '' ? $googleRedirect : null,
@@ -54,6 +57,9 @@ class IntegrationConfig
         $hints = [];
         if (!$frontendReady) {
             $hints[] = 'Set FRONTEND_URL on Railway to your Vercel URL (e.g. https://your-app.vercel.app).';
+        }
+        if ($defaultUri === '' || str_contains($defaultUri, 'localhost') || str_contains($defaultUri, '127.0.0.1')) {
+            $hints[] = 'Set DEFAULT_URI on Railway to your public API URL (e.g. https://backend-webdev-production.up.railway.app) so verification emails link correctly.';
         }
         if (!$googleReady) {
             $hints[] = 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Railway (from Google Cloud Console).';

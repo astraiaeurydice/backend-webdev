@@ -33,6 +33,10 @@ services:
             # Must be a real env var (see .env); Symfony default: processor needs a *parameter* name, not MAILER_FROM_ADDRESS
             $notifyEmail: '%env(CONTACT_NOTIFY_EMAIL)%'
 
+    App\Service\VerificationUrlBuilder:
+        arguments:
+            $defaultUri: '%env(string:default:default_backend_uri:DEFAULT_URI)%'
+
     App\Service\WebSocketPublisher:
         arguments:
             $workermanUrl: '%env(WORKERMAN_INTERNAL_URL)%'
