@@ -36,20 +36,48 @@ class GoogleController extends AbstractController
         JwtService $jwtService
     ): JsonResponse {
         $payload = json_decode($request->getContent(), true);
-        $accessToken = trim((string) ($payload['token'] ?? ''));
-        if ($accessToken === '') {
-            return $this->json(['error' => 'Google access token is required'], 400);
+        $accessToken = trim((string) ($payload['accessToken'] ?? ($payload['token'] ?? '')));
+        $idToken = trim((string) ($payload['idToken'] ?? ''));
+        if ($accessToken === '' && $idToken === '') {
+            return $this->json(['error' => 'Google token is required'], 400);
         }
 
         try {
             $client = new Client(['verify' => false]);
-            $googleResponse = $client->get('https://www.googleapis.com/userinfo/v2/me', [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $accessToken,
-                ],
-            ]);
-            $userData = json_decode((string) $googleResponse->getBody(), true);
+            $userData = null;
+
+            // Preferred: access token → userinfo
+            if ($accessToken !== '') {
+                $googleResponse = $client->get('https://www.googleapis.com/userinfo/v2/me', [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $accessToken,
+                    ],
+                ]);
+                $userData = json_decode((string) $googleResponse->getBody(), true);
+            }
+
+            // Fallback: id_token → tokeninfo (useful when access tokens are missing/unusable)
+            if (!is_array($userData) && $idToken !== '') {
+                $tokenInfoResponse = $client->get('https://oauth2.googleapis.com/tokeninfo', [
+                    'query' => [
+                        'id_token' => $idToken,
+                    ],
+                ]);
+                $tokenInfo = json_decode((string) $tokenInfoResponse->getBody(), true);
+                if (is_array($tokenInfo)) {
+                    $userData = [
+                        'email' => $tokenInfo['email'] ?? null,
+                        'given_name' => $tokenInfo['given_name'] ?? ($tokenInfo['name'] ?? null),
+                        'family_name' => $tokenInfo['family_name'] ?? null,
+                        'picture' => $tokenInfo['picture'] ?? null,
+                    ];
+                }
+            }
         } catch (\Exception $e) {
+            return $this->json(['error' => 'Failed to fetch user data from Google'], 400);
+        }
+
+        if (!is_array($userData)) {
             return $this->json(['error' => 'Failed to fetch user data from Google'], 400);
         }
 
