@@ -20,13 +20,17 @@ use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPasspor
 
 class GoogleAuthenticator extends OAuth2Authenticator
 {
+    private string $frontendUrl;
+
     public function __construct(
         private ClientRegistry $clientRegistry,
         private EntityManagerInterface $em,
         private JwtService $jwtService,
         private RouterInterface $router,
-        private string $frontendUrl,
-    ) {}
+        string $frontendUrl,
+    ) {
+        $this->frontendUrl = rtrim($frontendUrl, '/');
+    }
 
     public function supports(Request $request): ?bool
     {
@@ -74,6 +78,7 @@ class GoogleAuthenticator extends OAuth2Authenticator
                 $user->setRoles(['ROLE_USER']);
                 $user->setPassword('');         // No password for Google users
                 $user->setStatus('active');
+                $user->setIsVerified(true);
 
                 $this->em->persist($user);
                 $this->em->flush();
@@ -119,6 +124,7 @@ class GoogleAuthenticator extends OAuth2Authenticator
 
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
     {
-        return new Response('Authentication failed: ' . $exception->getMessage(), 403);
+        $message = urlencode($exception->getMessage() ?: 'google_auth_failed');
+        return new RedirectResponse($this->frontendUrl . '/login?error=' . $message);
     }
 }

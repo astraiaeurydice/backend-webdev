@@ -1,5 +1,8 @@
 parameters:
     products_images_directory: '%kernel.project_dir%/public/uploads/products'
+    # Fallbacks when Railway env vars are missing (health endpoint reports misconfigured)
+    default_backend_uri: 'http://127.0.0.1:8000'
+    default_google_redirect_uri: 'http://127.0.0.1:8000/connect/google/check'
 
 services:       
     _defaults:
@@ -33,6 +36,7 @@ services:
     App\Service\WebSocketPublisher:
         arguments:
             $workermanUrl: '%env(WORKERMAN_INTERNAL_URL)%'
+            $internalToken: '%env(WORKERMAN_INTERNAL_TOKEN)%'
 
     App\Service\OneSignalService:
         arguments:

@@ -96,11 +96,15 @@ In **Backend service → Variables**, add these (copy secrets from your local `.
 | `JWT_PASSPHRASE` | from local `JWT_PASSPHRASE` |
 | `DATABASE_URL` | reference from MySQL (Step 3) |
 | `FRONTEND_URL` | `http://localhost:3000` for now (change to Vercel URL later) |
-| `GOOGLE_CLIENT_ID` | from local `.env` |
-| `GOOGLE_CLIENT_SECRET` | from local `.env` |
-| `MAILER_DSN` | from local `.env` |
-| `MAILER_FROM_ADDRESS` | from local `.env` |
-| `MAILER_FROM_NAME` | from local `.env` |
+| `FRONTEND_URL` | Your **Vercel** URL, e.g. `https://your-app.vercel.app` (no trailing slash) |
+| `DEFAULT_URI` | Your **Railway** public URL, e.g. `https://backend-webdev-production.up.railway.app` |
+| `GOOGLE_CLIENT_ID` | From Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
+| `GOOGLE_REDIRECT_URI` | `https://YOUR-RAILWAY-DOMAIN/connect/google/check` (exact match in Google Console) |
+| `MAILER_DSN` | Brevo SMTP, e.g. `smtp://user@smtp-brevo.com:KEY@smtp-relay.brevo.com:587` |
+| `MAILER_FROM_ADDRESS` | Sender verified in Brevo |
+| `MAILER_FROM_NAME` | `K-Dream Merchandise` |
+| `CONTACT_NOTIFY_EMAIL` | Inbox for contact form notifications |
 | `CONTACT_NOTIFY_EMAIL` | from local `.env` |
 | `ONESIGNAL_APP_ID` | optional |
 | `ONESIGNAL_API_KEY` | optional |
@@ -171,9 +175,65 @@ You should get JSON with `token`, `roles`, `user`.
 
 ---
 
-## Step 8 — Google OAuth (for web login later)
+## Step 8 — Google OAuth + Brevo email
+
+**Check configuration after deploy:**
+
+```text
+GET https://YOUR-RAILWAY-DOMAIN/api/health/integrations
+```
+
+If `status` is `misconfigured`, follow the `hints` array in the JSON response.
+
+### Google OAuth
 
 1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**.
+
+---
+
+## Optional — Deploy WebSocket (Workerman) on Railway (real-time)
+
+Your API service (`backend-webdev`) does **not** run WebSocket. To enable real-time updates for mobile/web:
+
+### 1) Create a second Railway service
+
+1. In the **same Railway project**, click **+ New** → **Service** → **Deploy from GitHub repo**
+2. Choose the same repo
+3. Set **Root Directory** to `Backend`
+4. Name it something like: `backend-webdev-ws`
+
+### 2) Set the WS service start command
+
+Set the service start command to run Workerman:
+
+```bash
+php bin/websocket-server.php start
+```
+
+Railway will provide a `PORT` automatically. The WebSocket server uses `PORT` for the public `wss://` listener.
+
+### 3) Configure private push (API → WS service)
+
+On **WS service** variables:
+
+- **`WORKERMAN_INTERNAL_TOKEN`**: set a random secret (e.g. 32 chars)
+- (optional) `WORKERMAN_INTERNAL_HOST=0.0.0.0`
+- (optional) `WORKERMAN_INTERNAL_PORT=8091`
+
+On **API service** (`backend-webdev`) variables:
+
+- **`WORKERMAN_INTERNAL_URL`**: set to the WS service private URL, port 8091  
+  Example shape:
+  - `http://backend-webdev-ws.railway.internal:8091`
+- **`WORKERMAN_INTERNAL_TOKEN`**: same value as the WS service token
+
+### 4) Mobile app WebSocket URL
+
+In `Kpop/src/config/api.ts`, set:
+
+- `PRODUCTION_WS_URL = 'wss://YOUR-WS-SERVICE.up.railway.app'`
+
+Then rebuild the release APK.
 2. Open your OAuth 2.0 Client.
 3. **Authorized redirect URIs** → add:
 

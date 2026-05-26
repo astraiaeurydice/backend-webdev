@@ -26,3 +26,6 @@ yarn-error.log
 ###> lexik/jwt-authentication-bundle ###
 /config/jwt/*.pem
 ###< lexik/jwt-authentication-bundle ###
+
+# Local DB dumps (may contain user emails/password hashes)
+/scripts/railway-seed.sql

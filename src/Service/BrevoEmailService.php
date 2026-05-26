@@ -15,6 +15,7 @@ class BrevoEmailService
 {
     public function __construct(
         private MailerInterface $mailer,
+        private MailerConfig $mailerConfig,
         private string $fromAddress,
         private string $fromName,
         private string $notifyEmail,
@@ -28,6 +29,8 @@ class BrevoEmailService
         string $subject,
         string $message
     ): void {
+        $this->mailerConfig->requireConfigured();
+
         $from = new Address($this->fromAddress, $this->fromName);
         $safeSubject = htmlspecialchars($subject, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $safeMessage = nl2br(htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8'));

@@ -20,7 +20,33 @@ echo "Installing public assets..."
 php bin/console assets:install public --no-interaction --env="${APP_ENV}" 2>/dev/null || true
 
 echo "Running database migrations..."
-php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env="${APP_ENV}" 2>/dev/null || true
+if ! php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env="${APP_ENV}"; then
+  echo "WARN: doctrine:migrations:migrate failed — syncing schema from entities..."
+  php bin/console doctrine:schema:update --force --no-interaction --env="${APP_ENV}" 2>/dev/null || true
+fi
+# Ensure entity-only columns (e.g. receipt_number) exist even when migrations are out of sync
+php bin/console doctrine:schema:update --force --no-interaction --env="${APP_ENV}" 2>/dev/null || true
+
+echo "Checking integration env (Google / Brevo / Vercel)..."
+php bin/console dbal:run-sql "SELECT 1" --env="${APP_ENV}" >/dev/null 2>&1 || true
+php -r '
+$fe = getenv("FRONTEND_URL") ?: "";
+$dsn = getenv("MAILER_DSN") ?: "";
+$gid = getenv("GOOGLE_CLIENT_ID") ?: "";
+if (str_contains($fe, "localhost") || $fe === "") {
+  echo "WARN: FRONTEND_URL should be your Vercel URL (e.g. https://your-app.vercel.app)\n";
+}
+if ($dsn === "" || str_starts_with($dsn, "null://")) {
+  echo "WARN: MAILER_DSN is not set — Brevo email will not work.\n";
+}
+if ($gid === "") {
+  echo "WARN: GOOGLE_CLIENT_ID is not set — Sign in with Google will not work.\n";
+}
+$uri = getenv("DEFAULT_URI") ?: "";
+if ($uri === "") {
+  echo "WARN: DEFAULT_URI should be your Railway public URL (e.g. https://xxx.up.railway.app)\n";
+}
+' 2>/dev/null || true
 
 echo "Warming production cache..."
 php bin/console cache:clear --env="${APP_ENV}" --no-warmup 2>/dev/null || true

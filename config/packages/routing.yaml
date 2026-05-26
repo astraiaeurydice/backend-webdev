@@ -8,3 +8,5 @@ when@prod:
     framework:
         router:
             strict_requirements: null
+            # Absolute URLs in emails/OAuth (Railway proxy) — set DEFAULT_URI on Railway
+            default_uri: '%env(string:default:default_backend_uri:DEFAULT_URI)%'

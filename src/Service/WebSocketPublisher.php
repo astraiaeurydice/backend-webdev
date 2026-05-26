@@ -9,6 +9,7 @@ class WebSocketPublisher
 {
     public function __construct(
         private string $workermanUrl = 'http://localhost:8091',
+        private string $internalToken = '',
     ) {
     }
 
@@ -28,9 +29,14 @@ class WebSocketPublisher
                 return;
             }
 
+            $headers = ['Content-Type: application/json'];
+            if ($this->internalToken !== '') {
+                $headers[] = 'X-Internal-Token: ' . $this->internalToken;
+            }
+
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
-                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_HTTPHEADER => $headers,
                 CURLOPT_POSTFIELDS => $body,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 2,

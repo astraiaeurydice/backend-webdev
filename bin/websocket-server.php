@@ -4,8 +4,12 @@
 /**
  * Workerman WebSocket server with an internal HTTP push API.
  *
- * - WebSocket (port 8080): clients connect and authenticate with a JWT.
- * - Internal HTTP (port 8091, 127.0.0.1 only): Symfony POSTs messages to connected clients.
+ * - WebSocket (public): clients connect and authenticate with a JWT.
+ *   - Local dev default: ws://127.0.0.1:8080
+ *   - Railway: listens on $PORT so it can be exposed publicly as wss://...
+ * - Internal HTTP (private): Symfony POSTs messages to connected clients.
+ *   - Local dev default: http://127.0.0.1:8091
+ *   - Railway: binds 0.0.0.0 so the API service can reach it over the private network
  *   (8091 avoids conflicting with Metro bundler on 8081)
  *
  * Run: php bin/websocket-server.php
@@ -19,6 +23,14 @@ use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use Workerman\Worker;
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+$wsPort = (int) (getenv('PORT') ?: 8080);
+$internalHost = (string) (getenv('WORKERMAN_INTERNAL_HOST') ?: '0.0.0.0');
+$internalPort = (int) (getenv('WORKERMAN_INTERNAL_PORT') ?: 8091);
+$internalToken = (string) (getenv('WORKERMAN_INTERNAL_TOKEN') ?: '');
 
 // ---------------------------------------------------------------------------
 // Shared state: authenticated clients keyed by user id
@@ -86,7 +98,7 @@ function sendJsonResponse(TcpConnection $connection, array $body, int $status = 
 // ---------------------------------------------------------------------------
 // WebSocket worker — listens on port 8080 for client connections
 // ---------------------------------------------------------------------------
-$wsWorker = new Worker('websocket://0.0.0.0:8080');
+$wsWorker = new Worker('websocket://0.0.0.0:' . $wsPort);
 $wsWorker->name = 'websocket';
 
 // New connection: wait for an auth message before accepting traffic
@@ -160,13 +172,27 @@ $wsWorker->onClose = function (TcpConnection $connection) use (&$clients): void 
 // ---------------------------------------------------------------------------
 // Started inside the WebSocket worker process so both listeners share $clients
 // in the same process (required on Windows and for a shared in-memory registry).
-$wsWorker->onWorkerStart = function () use (&$clients): void {
-    $httpWorker = new Worker('http://127.0.0.1:8091');
+$wsWorker->onWorkerStart = function () use (&$clients, $internalHost, $internalPort): void {
+    $httpWorker = new Worker('http://' . $internalHost . ':' . $internalPort);
     $httpWorker->name = 'internal-http';
 
     $httpWorker->onMessage = function (TcpConnection $connection, Request $request) use (&$clients): void {
+        // Health check (useful for internal diagnostics)
+        if ($request->method() === 'GET') {
+            sendJsonResponse($connection, ['status' => 'ok']);
+            return;
+        }
+
         if ($request->method() !== 'POST') {
             sendJsonResponse($connection, ['status' => 'method_not_allowed'], 405);
+            return;
+        }
+
+        // Optional shared-secret auth for internal pushes (recommended in Railway)
+        $token = $request->header('x-internal-token') ?? '';
+        $expected = (string) (getenv('WORKERMAN_INTERNAL_TOKEN') ?: '');
+        if ($expected !== '' && !hash_equals($expected, (string) $token)) {
+            sendJsonResponse($connection, ['status' => 'unauthorized'], 401);
             return;
         }
 

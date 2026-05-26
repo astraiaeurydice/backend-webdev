@@ -14,6 +14,7 @@ class EmailVerificationService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private MailerInterface $mailer,
+        private MailerConfig $mailerConfig,
         private string $fromAddress,
         private string $fromName,
         private LoggerInterface $logger
@@ -26,6 +27,8 @@ class EmailVerificationService
 
     public function sendVerificationEmail(User $user, string $verificationUrl): void
     {
+        $this->mailerConfig->requireConfigured();
+
         $this->logger->info('EmailVerificationService: preparing verification email', [
             'to' => $user->getEmail(),
             'from' => $this->fromAddress,
