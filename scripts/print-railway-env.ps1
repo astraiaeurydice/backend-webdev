@@ -11,7 +11,7 @@ $vars = @(
     "GOOGLE_REDIRECT_URI=https://backend-webdev-production.up.railway.app/connect/google/check",
     "MAILER_DSN=(Brevo SMTP from .env)",
     "MAILER_FROM_ADDRESS=(from .env)",
-    "MAILER_FROM_NAME=K-Dream Merchandise",
+    'MAILER_FROM_NAME="K-Dream Merchandise"',
     "CONTACT_NOTIFY_EMAIL=(from .env)"
 )
 $vars | ForEach-Object { Write-Host "  $_" }

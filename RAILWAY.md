@@ -103,7 +103,7 @@ In **Backend service → Variables**, add these (copy secrets from your local `.
 | `GOOGLE_REDIRECT_URI` | `https://YOUR-RAILWAY-DOMAIN/connect/google/check` (exact match in Google Console) |
 | `MAILER_DSN` | Brevo SMTP, e.g. `smtp://user@smtp-brevo.com:KEY@smtp-relay.brevo.com:587` |
 | `MAILER_FROM_ADDRESS` | Sender verified in Brevo |
-| `MAILER_FROM_NAME` | `K-Dream Merchandise` |
+| `MAILER_FROM_NAME` | `"K-Dream Merchandise"` (quotes required — spaces break Symfony `.env`) |
 | `CONTACT_NOTIFY_EMAIL` | Inbox for contact form notifications |
 | `CONTACT_NOTIFY_EMAIL` | from local `.env` |
 | `ONESIGNAL_APP_ID` | optional |

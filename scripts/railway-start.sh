@@ -8,8 +8,19 @@ APP_ENV="${APP_ENV:-prod}"
 export APP_ENV
 
 if [ ! -f .env ]; then
-  echo "Creating .env from .env.example (Railway variables take precedence)..."
-  cp .env.example .env 2>/dev/null || echo "APP_ENV=${APP_ENV}" > .env
+  echo "Creating minimal .env (use Railway Variables for secrets; do not commit .env)..."
+  cat > .env <<'EOF'
+APP_ENV=prod
+###> symfony/framework-bundle ###
+APP_SECRET=
+JWT_SECRET=
+FRONTEND_URL=
+DEFAULT_URI=
+###< symfony/framework-bundle ###
+###> doctrine/doctrine-bundle ###
+DATABASE_URL=
+###< doctrine/doctrine-bundle ###
+EOF
 fi
 
 echo "Generating JWT keys if missing..."
