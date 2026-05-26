@@ -2,8 +2,10 @@
 
 namespace App\Service;
 
+use App\Entity\TradePost;
 use App\Entity\TradeRequest;
 use App\Entity\TradeTransaction;
+use App\Entity\User;
 use App\Service\Concerns\DeliversUserNotifications;
 
 class TradeService
@@ -15,19 +17,67 @@ class TradeService
     ) {
     }
 
+    /** Confirm to poster + alert other users that a new trade listing exists. */
+    public function notifyTradePostCreated(TradePost $tradePost): void
+    {
+        $owner = $tradePost->getUser();
+        if (!$owner) {
+            return;
+        }
+
+        $ownerId = (int) $owner->getId();
+        $item = $tradePost->getItemOffered() ?? 'an item';
+
+        $this->deliverUserNotification(
+            $this->userNotificationService,
+            $ownerId,
+            'Trade Posted',
+            sprintf('Your listing for "%s" is now live.', $item),
+            [
+                'type' => 'trade_post_created',
+                'tradeId' => $tradePost->getId(),
+            ],
+        );
+
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_listing_new',
+            'New trade listing',
+            sprintf('%s posted a trade for "%s".', $this->displayName($owner), $item),
+            [
+                'type' => 'trade_listing_new',
+                'tradeId' => $tradePost->getId(),
+            ],
+            $ownerId,
+        );
+    }
+
     /** Notify trade post owner when someone sends a trade offer. */
     public function sendTradeOffer(TradeRequest $tradeRequest): void
     {
         $tradePost = $tradeRequest->getTradePost();
         $receiverId = (int) $tradePost->getUser()->getId();
 
+        $requesterId = (int) $tradeRequest->getRequester()->getId();
+
         $this->deliverUserNotification(
             $this->userNotificationService,
             $receiverId,
             'New Trade Offer',
-            sprintf('%s wants to trade with you', $tradeRequest->getRequester()->getUsername()),
+            sprintf('%s wants to trade with you', $this->displayName($tradeRequest->getRequester())),
             [
                 'type' => 'trade_offer',
+                'tradeId' => $tradePost->getId(),
+                'requestId' => $tradeRequest->getId(),
+            ],
+        );
+
+        $this->deliverUserNotification(
+            $this->userNotificationService,
+            $requesterId,
+            'Offer Sent',
+            sprintf('Your offer on "%s" was sent to the listing owner.', $tradePost->getItemOffered() ?? 'the trade'),
+            [
+                'type' => 'trade_offer_sent',
                 'tradeId' => $tradePost->getId(),
                 'requestId' => $tradeRequest->getId(),
             ],
@@ -129,5 +179,24 @@ class TradeService
                 $data,
             );
         }
+    }
+
+    private function displayName(?User $user): string
+    {
+        if (!$user) {
+            return 'A collector';
+        }
+
+        $username = $user->getUsername();
+        if (is_string($username) && $username !== '') {
+            return $username;
+        }
+
+        $name = trim(($user->getFirstName() ?? '') . ' ' . ($user->getLastName() ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        return $user->getEmail() ?? 'A collector';
     }
 }

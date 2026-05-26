@@ -218,6 +218,12 @@ class TradeController extends AbstractController
         $this->em->persist($tradePost);
         $this->em->flush();
 
+        try {
+            $this->tradeService->notifyTradePostCreated($tradePost);
+        } catch (\Throwable) {
+            // Trade post is saved; notification failure must not block the response
+        }
+
         return $this->json($this->serializeTradePost($tradePost, true), 201);
     }
 
@@ -329,7 +335,11 @@ class TradeController extends AbstractController
         $this->em->persist($tradeRequest);
         $this->em->flush();
 
-        $this->tradeService->sendTradeOffer($tradeRequest);
+        try {
+            $this->tradeService->sendTradeOffer($tradeRequest);
+        } catch (\Throwable) {
+            // Request is saved; notification failure must not block the response
+        }
 
         return $this->json($this->serializeTradeRequest($tradeRequest), 201);
     }

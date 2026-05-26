@@ -3,6 +3,10 @@ parameters:
     # Fallbacks when Railway env vars are missing (health endpoint reports misconfigured)
     default_backend_uri: 'http://127.0.0.1:8000'
     default_google_redirect_uri: 'http://127.0.0.1:8000/connect/google/check'
+    default_workerman_internal_url: 'http://127.0.0.1:8091'
+    default_workerman_internal_token: ''
+    default_onesignal_app_id: ''
+    default_onesignal_api_key: ''
 
 services:       
     _defaults:
@@ -39,13 +43,13 @@ services:
 
     App\Service\WebSocketPublisher:
         arguments:
-            $workermanUrl: '%env(WORKERMAN_INTERNAL_URL)%'
-            $internalToken: '%env(WORKERMAN_INTERNAL_TOKEN)%'
+            $workermanUrl: '%env(default:default_workerman_internal_url:WORKERMAN_INTERNAL_URL)%'
+            $internalToken: '%env(default:default_workerman_internal_token:WORKERMAN_INTERNAL_TOKEN)%'
 
     App\Service\OneSignalService:
         arguments:
-            $appId: '%env(ONESIGNAL_APP_ID)%'
-            $apiKey: '%env(ONESIGNAL_API_KEY)%'
+            $appId: '%env(default:default_onesignal_app_id:ONESIGNAL_APP_ID)%'
+            $apiKey: '%env(default:default_onesignal_api_key:ONESIGNAL_API_KEY)%'
 
     App\Security\GoogleAuthenticator:
         arguments:

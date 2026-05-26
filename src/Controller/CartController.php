@@ -32,7 +32,10 @@ class CartController extends AbstractController
 
         try {
             $decoded = $jwtService->validateToken(substr($authHeader, 7));
-            $user = $em->getRepository(User::class)->find($decoded['id'] ?? null);
+            if (!$decoded || !isset($decoded['id'])) {
+                return $this->json(['error' => 'Invalid token'], 401);
+            }
+            $user = $em->getRepository(User::class)->find((int) $decoded['id']);
             if (!$user) {
                 return $this->json(['error' => 'User not found'], 401);
             }
@@ -50,44 +53,50 @@ class CartController extends AbstractController
         $pendingOrders = [];
         $total = 0.0;
 
-        foreach ($items as $item) {
-            $productId = $item['productId'] ?? null;
-            $quantity = (int) ($item['quantity'] ?? 0);
-            if (!$productId || $quantity < 1) {
-                return $this->json(['error' => 'Invalid cart item'], 400);
+        try {
+            foreach ($items as $item) {
+                $productId = $item['productId'] ?? null;
+                $quantity = (int) ($item['quantity'] ?? 0);
+                if ($productId === null || $productId === '' || $quantity < 1) {
+                    return $this->json(['error' => 'Invalid cart item'], 400);
+                }
+
+                $product = $em->getRepository(Product::class)->find((int) $productId);
+                if (!$product) {
+                    return $this->json(['error' => "Product {$productId} not found"], 404);
+                }
+                if (($product->getStockQuantity() ?? 0) < $quantity) {
+                    return $this->json(['error' => "Insufficient stock for {$product->getName()}"], 400);
+                }
+
+                $lineTotal = $product->getPrice() * $quantity;
+
+                $order = new CustomOrder();
+                $order->setCustomer($user);
+                $order->setProduct($product);
+                $order->setQuantity($quantity);
+                $order->setTotalPrice($lineTotal);
+                $order->setStatus('complete');
+                $order->setReceiptNumber($receiptNumber);
+
+                $product->decreaseStock($quantity);
+                $em->persist($order);
+
+                $pendingOrders[] = [
+                    'order' => $order,
+                    'product' => $product,
+                    'quantity' => $quantity,
+                    'lineTotal' => $lineTotal,
+                ];
+                $total += $lineTotal;
             }
 
-            $product = $em->getRepository(Product::class)->find($productId);
-            if (!$product) {
-                return $this->json(['error' => "Product {$productId} not found"], 404);
-            }
-            if (($product->getStockQuantity() ?? 0) < $quantity) {
-                return $this->json(['error' => "Insufficient stock for {$product->getName()}"], 400);
-            }
-
-            $lineTotal = $product->getPrice() * $quantity;
-
-            $order = new CustomOrder();
-            $order->setCustomer($user);
-            $order->setProduct($product);
-            $order->setQuantity($quantity);
-            $order->setTotalPrice($lineTotal);
-            $order->setStatus('complete');
-            $order->setReceiptNumber($receiptNumber);
-
-            $product->decreaseStock($quantity);
-            $em->persist($order);
-
-            $pendingOrders[] = [
-                'order' => $order,
-                'product' => $product,
-                'quantity' => $quantity,
-                'lineTotal' => $lineTotal,
-            ];
-            $total += $lineTotal;
+            $em->flush();
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            return $this->json(['error' => 'Checkout could not be completed. Please try again.'], 500);
         }
-
-        $em->flush();
 
         $receiptItems = [];
         $orderIds = [];
@@ -108,15 +117,23 @@ class CartController extends AbstractController
             $customerName = $user->getUsername() ?? $user->getEmail() ?? 'Customer';
         }
 
-        $orderService->notifyCheckoutComplete($user, $orderIds, $total, $receiptNumber);
+        try {
+            $orderService->notifyCheckoutComplete($user, $orderIds, $total, $receiptNumber);
+        } catch (\Throwable) {
+            // Checkout succeeded; notification is best-effort
+        }
 
-        $activityLogService->logCreate(
-            $user,
-            'Purchase',
-            $receiptNumber,
-            sprintf('Checkout %s — %d item(s), total ₱%.2f', $receiptNumber, count($orderIds), $total),
-            $request
-        );
+        try {
+            $activityLogService->logCreate(
+                $user,
+                'Purchase',
+                $receiptNumber,
+                sprintf('Checkout %s — %d item(s), total ₱%.2f', $receiptNumber, count($orderIds), $total),
+                $request
+            );
+        } catch (\Throwable) {
+            // Do not fail checkout if audit log fails
+        }
 
         return $this->json([
             'message' => 'Checkout successful',

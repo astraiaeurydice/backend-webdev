@@ -29,29 +29,37 @@ class UserNotificationService
      */
     public function deliverToUser(int $userId, string $type, string $title, string $body, array $data = []): void
     {
-        $user = $this->userRepository->find($userId);
-        if (!$user instanceof User) {
-            return;
-        }
-
-        $notification = $this->createNotification($user, $type, $title, $body, $data);
-        $this->em->flush();
-        $payload = $this->buildPayload($notification, $type, $title, $body, $data);
-
         try {
-            $this->webSocketPublisher->send($userId, $payload);
-        } catch (\Throwable $e) {
-            $this->logger->warning('WebSocket notification failed', [
-                'userId' => $userId,
-                'type' => $type,
-                'error' => $e->getMessage(),
-            ]);
-        }
+            $user = $this->userRepository->find($userId);
+            if (!$user instanceof User) {
+                return;
+            }
 
-        try {
-            $this->oneSignalService->notify($userId, $title, $body, $data);
+            $notification = $this->createNotification($user, $type, $title, $body, $data);
+            $this->em->flush();
+            $payload = $this->buildPayload($notification, $type, $title, $body, $data);
+
+            try {
+                $this->webSocketPublisher->send($userId, $payload);
+            } catch (\Throwable $e) {
+                $this->logger->warning('WebSocket notification failed', [
+                    'userId' => $userId,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                $this->oneSignalService->notify($userId, $title, $body, $data);
+            } catch (\Throwable $e) {
+                $this->logger->warning('OneSignal notification failed', [
+                    'userId' => $userId,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         } catch (\Throwable $e) {
-            $this->logger->warning('OneSignal notification failed', [
+            $this->logger->error('Notification delivery failed', [
                 'userId' => $userId,
                 'type' => $type,
                 'error' => $e->getMessage(),
@@ -66,39 +74,46 @@ class UserNotificationService
      */
     public function deliverToAllUsers(string $type, string $title, string $body, array $data = [], ?int $excludeUserId = null): void
     {
-        $payload = array_merge([
-            'type' => $type,
-            'title' => $title,
-            'body' => $body,
-        ], $data);
-
         try {
-            $this->webSocketPublisher->broadcast($payload);
-        } catch (\Throwable $e) {
-            $this->logger->warning('WebSocket broadcast failed', ['type' => $type, 'error' => $e->getMessage()]);
-        }
-
-        $users = $this->userRepository->findBy(['status' => 'active']);
-        foreach ($users as $user) {
-            $id = (int) $user->getId();
-            if ($excludeUserId !== null && $id === $excludeUserId) {
-                continue;
-            }
-
-            $this->createNotification($user, $type, $title, $body, $data);
+            $payload = array_merge([
+                'type' => $type,
+                'title' => $title,
+                'body' => $body,
+            ], $data);
 
             try {
-                $this->oneSignalService->notify($id, $title, $body, $data);
+                $this->webSocketPublisher->broadcast($payload);
             } catch (\Throwable $e) {
-                $this->logger->warning('OneSignal notification failed', [
-                    'userId' => $id,
-                    'type' => $type,
-                    'error' => $e->getMessage(),
-                ]);
+                $this->logger->warning('WebSocket broadcast failed', ['type' => $type, 'error' => $e->getMessage()]);
             }
-        }
 
-        $this->em->flush();
+            $users = $this->userRepository->findBy(['status' => 'active']);
+            foreach ($users as $user) {
+                $id = (int) $user->getId();
+                if ($excludeUserId !== null && $id === $excludeUserId) {
+                    continue;
+                }
+
+                $this->createNotification($user, $type, $title, $body, $data);
+
+                try {
+                    $this->oneSignalService->notify($id, $title, $body, $data);
+                } catch (\Throwable $e) {
+                    $this->logger->warning('OneSignal notification failed', [
+                        'userId' => $id,
+                        'type' => $type,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $this->em->flush();
+        } catch (\Throwable $e) {
+            $this->logger->error('Broadcast notification failed', [
+                'type' => $type,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

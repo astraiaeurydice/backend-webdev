@@ -20,7 +20,7 @@ class WebSocketPublisher
     {
         try {
             $body = json_encode([
-                'userId' => $userId,
+                'userId' => (int) $userId,
                 'payload' => $payload,
             ], JSON_THROW_ON_ERROR);
 

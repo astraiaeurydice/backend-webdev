@@ -53,7 +53,10 @@ class EmailVerificationService
             ");
 
         try {
+            $previousTimeout = ini_get('default_socket_timeout');
+            ini_set('default_socket_timeout', '10');
             $this->mailer->send($email);
+            ini_set('default_socket_timeout', (string) $previousTimeout);
             $this->logger->info('EmailVerificationService: verification email sent successfully', [
                 'to' => $user->getEmail(),
             ]);
