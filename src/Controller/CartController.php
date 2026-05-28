@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Service\ActivityLogService;
 use App\Service\JwtService;
 use App\Service\OrderService;
+use App\Service\ProductCatalogNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,6 +25,7 @@ class CartController extends AbstractController
         EntityManagerInterface $em,
         OrderService $orderService,
         ActivityLogService $activityLogService,
+        ProductCatalogNotificationService $catalogNotifier,
     ): JsonResponse {
         $authHeader = $request->headers->get('Authorization');
         if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
@@ -121,6 +123,15 @@ class CartController extends AbstractController
             $orderService->notifyCheckoutComplete($user, $orderIds, $total, $receiptNumber);
         } catch (\Throwable) {
             // Checkout succeeded; notification is best-effort
+        }
+
+        // Broadcast stock changes caused by checkout so web/mobile dashboards update in realtime.
+        foreach ($pendingOrders as $row) {
+            try {
+                $catalogNotifier->notifyUpdated($row['product'], (int) $user->getId());
+            } catch (\Throwable) {
+                // Best-effort: checkout must remain successful even if realtime publish fails.
+            }
         }
 
         try {
