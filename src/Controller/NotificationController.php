@@ -64,10 +64,8 @@ class NotificationController extends AbstractController
             return $this->json(['error' => 'token is required'], 400);
         }
 
-        $user->setFcmToken($token);
-        $this->em->flush();
-
-        return $this->json(['status' => 'ok']);
+        // Push token storage disabled until fcm_token migration is applied on production.
+        return $this->json(['status' => 'ok', 'stored' => false]);
     }
 
     private function resolveUser(Request $request): ?User

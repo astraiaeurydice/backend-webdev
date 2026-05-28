@@ -21,10 +21,17 @@ class AuthController extends AbstractController
         JwtService $jwtService
     ): JsonResponse {
         $data = json_decode($request->getContent(), true);
+        if (!is_array($data)) {
+            return new JsonResponse(['error' => 'Invalid JSON'], 400);
+        }
         $email = $data['email'] ?? '';
         $password = $data['password'] ?? '';
 
-        $user = $em->getRepository(User::class)->findOneBy(['email' => $email]);
+        try {
+            $user = $em->getRepository(User::class)->findOneBy(['email' => $email]);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'Login temporarily unavailable. Please try again shortly.'], 503);
+        }
 
         if (!$user || !$passwordHasher->isPasswordValid($user, $password)) {
             return new JsonResponse(['error' => 'Invalid credentials'], 401);

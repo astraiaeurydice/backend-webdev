@@ -27,10 +27,9 @@ class FirebasePushService
      */
     public function notify(User $user, string $title, string $body, array $data = []): void
     {
-        $deviceToken = trim((string) ($user->getFcmToken() ?? ''));
-        if ($deviceToken === '') {
-            return;
-        }
+        // System push deferred — poll + WebSocket still deliver in-app notifications.
+        unset($user, $title, $body, $data);
+        return;
 
         $projectId = trim($this->projectId);
         if ($projectId === '') {
