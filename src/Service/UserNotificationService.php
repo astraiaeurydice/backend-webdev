@@ -10,7 +10,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Stores notifications in DB (poll fallback) and delivers via WebSocket + optional OneSignal.
+ * Stores notifications in DB (poll fallback) and delivers via WebSocket + optional FCM.
  */
 class UserNotificationService
 {
@@ -19,7 +19,7 @@ class UserNotificationService
         private AppNotificationRepository $notificationRepository,
         private UserRepository $userRepository,
         private WebSocketPublisher $webSocketPublisher,
-        private OneSignalService $oneSignalService,
+        private FirebasePushService $firebasePushService,
         private LoggerInterface $logger,
     ) {
     }
@@ -50,9 +50,9 @@ class UserNotificationService
             }
 
             try {
-                $this->oneSignalService->notify($userId, $title, $body, $data);
+                $this->firebasePushService->notify($user, $title, $body, $data);
             } catch (\Throwable $e) {
-                $this->logger->warning('OneSignal notification failed', [
+                $this->logger->warning('FCM notification failed', [
                     'userId' => $userId,
                     'type' => $type,
                     'error' => $e->getMessage(),
@@ -97,9 +97,9 @@ class UserNotificationService
                 $this->createNotification($user, $type, $title, $body, $data);
 
                 try {
-                    $this->oneSignalService->notify($id, $title, $body, $data);
+                    $this->firebasePushService->notify($user, $title, $body, $data);
                 } catch (\Throwable $e) {
-                    $this->logger->warning('OneSignal notification failed', [
+                    $this->logger->warning('FCM notification failed', [
                         'userId' => $id,
                         'type' => $type,
                         'error' => $e->getMessage(),

@@ -48,23 +48,27 @@ class HealthController extends AbstractController
         ]);
     }
 
-    /** Mobile notifications: poll API always works; WebSocket/OneSignal are optional extras. */
+    /** Mobile notifications: poll API always works; WebSocket/FCM are optional extras. */
     #[Route('/api/health/realtime', name: 'api_health_realtime', methods: ['GET'])]
     public function realtime(): JsonResponse
     {
         $wsUrl = (string) ($_ENV['WORKERMAN_INTERNAL_URL'] ?? getenv('WORKERMAN_INTERNAL_URL') ?: '');
         $wsToken = (string) ($_ENV['WORKERMAN_INTERNAL_TOKEN'] ?? getenv('WORKERMAN_INTERNAL_TOKEN') ?: '');
-        $oneSignalId = (string) ($_ENV['ONESIGNAL_APP_ID'] ?? getenv('ONESIGNAL_APP_ID') ?: '');
+        $firebaseProjectId = (string) ($_ENV['FIREBASE_PROJECT_ID'] ?? getenv('FIREBASE_PROJECT_ID') ?: '');
+        $firebaseServiceAccount = (string) ($_ENV['FIREBASE_SERVICE_ACCOUNT_JSON'] ?? getenv('FIREBASE_SERVICE_ACCOUNT_JSON') ?: '');
 
         return $this->json([
             'status' => 'ok',
             'poll_api' => '/api/notifications/poll',
+            'in_app_only_without_firebase_push' => $firebaseProjectId === '' || $firebaseServiceAccount === '',
             'websocket_push' => [
                 'configured' => $wsUrl !== '' && $wsToken !== '',
                 'internal_url_set' => $wsUrl !== '',
             ],
-            'onesignal' => [
-                'configured' => $oneSignalId !== '',
+            'firebase' => [
+                'configured' => $firebaseProjectId !== '' && $firebaseServiceAccount !== '',
+                'project_id_set' => $firebaseProjectId !== '',
+                'service_account_json_set' => $firebaseServiceAccount !== '',
             ],
         ]);
     }

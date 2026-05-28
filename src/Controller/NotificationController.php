@@ -46,6 +46,30 @@ class NotificationController extends AbstractController
         return $this->json($this->userNotificationService->pollForUser($user, $since));
     }
 
+    #[Route('/device-token', name: 'api_notifications_device_token', methods: ['PUT'])]
+    public function registerDeviceToken(Request $request): JsonResponse
+    {
+        $user = $this->resolveUser($request);
+        if (!$user instanceof User) {
+            return $this->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $payload = json_decode($request->getContent(), true);
+        if (!is_array($payload)) {
+            return $this->json(['error' => 'Invalid JSON body'], 400);
+        }
+
+        $token = trim((string) ($payload['token'] ?? ''));
+        if ($token === '') {
+            return $this->json(['error' => 'token is required'], 400);
+        }
+
+        $user->setFcmToken($token);
+        $this->em->flush();
+
+        return $this->json(['status' => 'ok']);
+    }
+
     private function resolveUser(Request $request): ?User
     {
         $authHeader = $request->headers->get('Authorization');

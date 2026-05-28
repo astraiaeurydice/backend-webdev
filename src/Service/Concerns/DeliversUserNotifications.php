@@ -5,7 +5,7 @@ namespace App\Service\Concerns;
 use App\Service\UserNotificationService;
 
 /**
- * Persists + delivers notifications (WebSocket, poll inbox, optional OneSignal).
+ * Persists + delivers notifications (WebSocket, poll inbox, optional Firebase push).
  */
 trait DeliversUserNotifications
 {

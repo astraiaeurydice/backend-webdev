@@ -64,6 +64,17 @@ $uri = getenv("DEFAULT_URI") ?: "";
 if ($uri === "") {
   echo "WARN: DEFAULT_URI should be your Railway public URL (e.g. https://xxx.up.railway.app)\n";
 }
+$fp = getenv("FIREBASE_PROJECT_ID") ?: "";
+$fsa = getenv("FIREBASE_SERVICE_ACCOUNT_JSON") ?: "";
+if ($fp === "" || $fsa === "") {
+  echo "WARN: FIREBASE_PROJECT_ID / FIREBASE_SERVICE_ACCOUNT_JSON missing — Android system push will not send.\n";
+} else {
+  echo "OK: Firebase push env present (project id set).\n";
+}
+$ws = getenv("WORKERMAN_INTERNAL_URL") ?: "";
+if ($ws === "" || str_contains($ws, "localhost")) {
+  echo "WARN: WORKERMAN_INTERNAL_URL should point to your Railway WebSocket internal HTTP endpoint for realtime.\n";
+}
 ' 2>/dev/null || true
 
 echo "Warming production cache..."

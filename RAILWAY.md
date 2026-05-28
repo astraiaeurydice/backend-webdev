@@ -106,9 +106,10 @@ In **Backend service → Variables**, add these (copy secrets from your local `.
 | `MAILER_FROM_NAME` | `"K-Dream Merchandise"` (quotes required — spaces break Symfony `.env`) |
 | `CONTACT_NOTIFY_EMAIL` | Inbox for contact form notifications |
 | `CONTACT_NOTIFY_EMAIL` | from local `.env` |
-| `ONESIGNAL_APP_ID` | optional |
-| `ONESIGNAL_API_KEY` | optional |
-| `WORKERMAN_INTERNAL_URL` | `http://localhost:8091` (OK if WebSocket not deployed yet) |
+| `FIREBASE_PROJECT_ID` | Firebase project id (same as mobile `google-services.json`) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (single line in Railway Variables) |
+| `WORKERMAN_INTERNAL_URL` | Internal HTTP URL of WebSocket service (e.g. `http://websocket.railway.internal:8091`) |
+| `WORKERMAN_INTERNAL_TOKEN` | Shared secret between Backend and WsServer (must match WsServer service) |
 
 **Lexik JWT file paths** (keys are generated at build time):
 
@@ -118,6 +119,21 @@ In **Backend service → Variables**, add these (copy secrets from your local `.
 | `JWT_PUBLIC_KEY` | `%kernel.project_dir%/config/jwt/public.pem` |
 
 Do **not** upload your local `.env` file. Set variables only in the Railway UI.
+
+### Firebase push migration (`fcm_token` column)
+
+After you set `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON`, add the DB column once:
+
+**Option A — automatic on deploy (recommended):**  
+Push your Backend code and redeploy. `scripts/railway-start.sh` runs migrations + `doctrine:schema:update`, which creates `user.fcm_token`.
+
+**Option B — run from your PC before deploy:**
+
+```powershell
+cd Backend
+$env:RAILWAY_DATABASE_URL = "<MYSQL_PUBLIC_URL from Railway MySQL → Variables>"
+.\scripts\migrate-fcm-railway.ps1
+```
 
 ---
 
@@ -135,7 +151,15 @@ Do **not** upload your local `.env` file. Set variables only in the Railway UI.
 2. Open **Deploy Logs** and confirm you see:
    - `composer install`
    - `Running database migrations...`
-   - `Starting PHP built-in server on 0.0.0.0:...`
+   - `OK: Firebase push env present` (or fix missing Firebase vars)
+   - `Starting PHP on 0.0.0.0:...`
+3. Verify push config:
+
+```text
+GET https://YOUR-RAILWAY-DOMAIN/api/health/realtime
+```
+
+After deploy with the new code, `firebase.configured` should be `true`.
 
 ### If deploy fails
 

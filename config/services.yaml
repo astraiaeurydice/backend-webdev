@@ -5,8 +5,8 @@ parameters:
     default_google_redirect_uri: 'http://127.0.0.1:8000/connect/google/check'
     default_workerman_internal_url: 'http://127.0.0.1:8091'
     default_workerman_internal_token: ''
-    default_onesignal_app_id: ''
-    default_onesignal_api_key: ''
+    default_firebase_project_id: ''
+    default_firebase_service_account_json: ''
 
 services:       
     _defaults:
@@ -46,10 +46,10 @@ services:
             $workermanUrl: '%env(default:default_workerman_internal_url:WORKERMAN_INTERNAL_URL)%'
             $internalToken: '%env(default:default_workerman_internal_token:WORKERMAN_INTERNAL_TOKEN)%'
 
-    App\Service\OneSignalService:
+    App\Service\FirebasePushService:
         arguments:
-            $appId: '%env(default:default_onesignal_app_id:ONESIGNAL_APP_ID)%'
-            $apiKey: '%env(default:default_onesignal_api_key:ONESIGNAL_API_KEY)%'
+            $projectId: '%env(default:default_firebase_project_id:FIREBASE_PROJECT_ID)%'
+            $serviceAccountJson: '%env(default:default_firebase_service_account_json:FIREBASE_SERVICE_ACCOUNT_JSON)%'
 
     App\Security\GoogleAuthenticator:
         arguments:
