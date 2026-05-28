@@ -58,6 +58,7 @@ class TradeService
         $receiverId = (int) $tradePost->getUser()->getId();
 
         $requesterId = (int) $tradeRequest->getRequester()->getId();
+        $item = $tradePost->getItemOffered() ?? 'a trade listing';
 
         $this->deliverUserNotification(
             $this->userNotificationService,
@@ -82,12 +83,26 @@ class TradeService
                 'requestId' => $tradeRequest->getId(),
             ],
         );
+
+        // Keep admin/staff trading views live as requests are created.
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_offer',
+            'Trade Offer Activity',
+            sprintf('A new offer was sent for "%s".', $item),
+            [
+                'type' => 'trade_offer',
+                'tradeId' => $tradePost->getId(),
+                'requestId' => $tradeRequest->getId(),
+            ],
+            null,
+        );
     }
 
     /** Notify requester when the owner accepts their trade offer. */
     public function acceptTrade(TradeRequest $tradeRequest, TradeTransaction $transaction): void
     {
         $requesterId = (int) $tradeRequest->getRequester()->getId();
+        $tradeId = $tradeRequest->getTradePost()->getId();
 
         $this->deliverUserNotification(
             $this->userNotificationService,
@@ -96,10 +111,23 @@ class TradeService
             'Your trade offer was accepted. Waiting for admin verification.',
             [
                 'type' => 'trade_accepted',
-                'tradeId' => $tradeRequest->getTradePost()->getId(),
+                'tradeId' => $tradeId,
                 'requestId' => $tradeRequest->getId(),
                 'transactionId' => $transaction->getId(),
             ],
+        );
+
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_accepted',
+            'Trade Accepted',
+            'A trade offer was accepted and is waiting for verification.',
+            [
+                'type' => 'trade_accepted',
+                'tradeId' => $tradeId,
+                'requestId' => $tradeRequest->getId(),
+                'transactionId' => $transaction->getId(),
+            ],
+            null,
         );
     }
 
@@ -107,6 +135,7 @@ class TradeService
     public function rejectTrade(TradeRequest $tradeRequest): void
     {
         $requesterId = (int) $tradeRequest->getRequester()->getId();
+        $tradeId = $tradeRequest->getTradePost()->getId();
 
         $this->deliverUserNotification(
             $this->userNotificationService,
@@ -115,9 +144,21 @@ class TradeService
             'Your trade offer was declined.',
             [
                 'type' => 'trade_rejected',
-                'tradeId' => $tradeRequest->getTradePost()->getId(),
+                'tradeId' => $tradeId,
                 'requestId' => $tradeRequest->getId(),
             ],
+        );
+
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_rejected',
+            'Trade Rejected',
+            'A trade offer was rejected.',
+            [
+                'type' => 'trade_rejected',
+                'tradeId' => $tradeId,
+                'requestId' => $tradeRequest->getId(),
+            ],
+            null,
         );
     }
 
@@ -158,6 +199,14 @@ class TradeService
                 $data,
             );
         }
+
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_verified',
+            'Trade Verified',
+            'A trade transaction has been verified by staff.',
+            $data,
+            null,
+        );
     }
 
     /** Notify both parties when admin rejects the trade transaction. */
@@ -179,6 +228,14 @@ class TradeService
                 $data,
             );
         }
+
+        $this->userNotificationService->deliverToAllUsers(
+            'trade_rejected_admin',
+            'Trade Not Approved',
+            'A trade transaction was rejected during verification.',
+            $data,
+            null,
+        );
     }
 
     private function displayName(?User $user): string
