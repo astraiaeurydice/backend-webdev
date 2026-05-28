@@ -128,7 +128,7 @@ class CartController extends AbstractController
         // Broadcast stock changes caused by checkout so web/mobile dashboards update in realtime.
         foreach ($pendingOrders as $row) {
             try {
-                $catalogNotifier->notifyUpdated($row['product'], (int) $user->getId());
+                $catalogNotifier->notifyProductUpdated($row['product'], (int) $user->getId());
             } catch (\Throwable) {
                 // Best-effort: checkout must remain successful even if realtime publish fails.
             }
